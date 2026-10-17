@@ -57,6 +57,23 @@ launchctl bootout "gui/$(id -u)/com.evan.news-sync"
 
 다시 활성화하려면 위의 `--install` 명령을 실행합니다. 자동 시작도 제거하려면 작업을 중지한 뒤 plist 파일을 삭제합니다. CSV나 사이트 데이터는 삭제하지 않습니다.
 
+## macOS 파일 접근 권한
+
+Desktop 또는 Documents 아래의 소스·CSV를 백그라운드 Python이 읽을 때 macOS가 `Operation not permitted`로 차단할 수 있습니다. 터미널에서 수동 실행이 성공해도 LaunchAgent의 권한은 별도 확인해야 합니다.
+
+시스템 설정의 **개인정보 보호 및 보안**에서 Python의 파일 접근 권한을 허용합니다. 파일 및 폴더 항목에서 필요한 폴더를 허용할 수 없다면 **전체 디스크 접근 권한**에 설치된 작업의 Python 실행 파일을 추가합니다. `+` 파일 선택창에서 `Command Shift G`를 눌러 경로를 입력할 수 있습니다. 실행 파일 경로는 설치된 plist의 `ProgramArguments` 첫 항목입니다.
+
+전체 디스크 접근 권한은 Python이 보호된 파일에도 접근하도록 허용하는 권한입니다. 사용자 직접 승인과 macOS 인증이 필요하며, 설치 스크립트는 이 설정을 변경하지 않습니다.
+
+승인 후 작업을 다시 시작하고 마지막 종료 코드와 로그를 확인합니다.
+
+```bash
+launchctl kickstart "gui/$(id -u)/com.evan.news-sync"
+launchctl print "gui/$(id -u)/com.evan.news-sync"
+```
+
+`last exit code = 0`이면 마지막 확인이 성공했습니다. 과거 오류는 로그에 남아 있을 수 있습니다. 권한을 승인하지 않아도 이미 배포된 사이트는 계속 동작하며 수동 동기화는 사용할 수 있습니다.
+
 ## 로컬 상태와 진단
 
 `.news-sync/`에는 성공한 revision과 저장소 이름을 담은 `state.json`, 중복 실행을 막는 잠금 파일, `sync.log`, `error.log`가 있습니다. 실행 중에는 공개 JSON 임시 파일이 생기며 실행이 끝나면 제거합니다. CSV를 복제하거나 인증 정보를 저장하지 않습니다. 이 디렉터리는 Git에서 제외합니다.
