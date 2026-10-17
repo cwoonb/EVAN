@@ -1,0 +1,31 @@
+{
+  "name": "evan-ai-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "python3 -m unittest discover -s tests -p 'test_*.py'",
+    "news:build": "python3 scripts/build_news_feed.py",
+    "news:sync": "python3 scripts/sync_news.py --once"
+  },
+  "dependencies": {
+    "next": "16.4.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "lucide-react": "^1.57.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "16.4.1"
+  }
+}

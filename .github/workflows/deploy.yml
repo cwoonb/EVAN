@@ -1,0 +1,117 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [news-updated]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    env:
+      GITHUB_PAGES: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      HAS_NEWS_DATA_KEY: ${{ secrets.NEWS_DATA_DEPLOY_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Queued data updates always build the current source on main.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
+          persist-credentials: false
+      - name: Require production data access
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          if [[ "$HAS_NEWS_DATA_KEY" != "true" ]]; then
+            echo "NEWS_DATA_DEPLOY_KEY is required for production deployment." >&2
+            exit 1
+          fi
+      - name: Checkout private public-data projection
+        if: github.event_name != 'pull_request' && env.HAS_NEWS_DATA_KEY == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: cwoonb/EVAN-news-data
+          path: .news-data
+          ssh-key: ${{ secrets.NEWS_DATA_DEPLOY_KEY }}
+          persist-credentials: false
+      - name: Prepare validated news data
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import shutil
+          import sys
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          from sync_news import validate_feed
+          source = Path(".news-data/data/news.json")
+          validate_feed(json.loads(source.read_text(encoding="utf-8")))
+          destination = Path("public/data/news.json")
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copyfile(source, destination)
+          PY
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Set the site base path
+        env:
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          if [[ "${REPOSITORY_NAME,,}" == "${REPOSITORY_OWNER,,}.github.io" ]]; then
+            echo "NEXT_PUBLIC_BASE_PATH=" >> "$GITHUB_ENV"
+          else
+            printf 'NEXT_PUBLIC_BASE_PATH=/%s\n' "$REPOSITORY_NAME" >> "$GITHUB_ENV"
+          fi
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npm run typecheck
+      - name: Test news pipeline
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - name: Build static site
+        run: npm run build
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: out
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
