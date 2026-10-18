@@ -109,7 +109,7 @@ def validate_feed(value: Any) -> dict[str, Any]:
         event = issue["event"]
         _object(event, {"subject", "action", "object", "version", "date", "summary"}, "event")
         for field in ("subject", "action", "object", "version", "date"):
-            _text(event[field], f"event {field}", maximum=300, empty=True)
+            _text(event[field], f"event {field}", maximum=700 if field == "object" else 300, empty=True)
         if event["date"]:
             try:
                 if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", event["date"]):

@@ -246,6 +246,18 @@ class NewsSyncTests(unittest.TestCase):
 
 
 class MissingAnalysisTests(unittest.TestCase):
+    def test_builder_event_object_limit_is_accepted_for_publication(self):
+        from scripts.build_news_feed import build_feed
+
+        feed = build_feed([{
+            "title": "A detailed product announcement",
+            "published": "2026-10-18T10:00:00Z", "source": "Example",
+            "article_url": "https://example.com/detailed",
+            "event_object": "A detailed product capability description. " * 20,
+        }])
+        self.assertEqual(len(feed["issues"][0]["event"]["object"]), 700)
+        self.assertEqual(validate_feed(feed)["stats"]["articles"], 1)
+
     def test_unavailable_article_body_does_not_block_valid_news(self):
         from scripts.build_news_feed import build_feed
 
