@@ -132,7 +132,9 @@ def validate_feed(value: Any) -> dict[str, Any]:
             source_ids.add(identifier)
             _text(source["title"], "source title", maximum=600)
             _text(source["source"], "source name", maximum=200)
-            _text(source["summary"], "source summary")
+            # Articles whose body could not be collected have no analysis yet.
+            # Preserve that absence instead of rejecting all other valid news.
+            _text(source["summary"], "source summary", empty=True)
             _terms(source["searchKeywords"], "source search keywords")
             published_dates.append(_date(source["publishedAt"], "source publication"))
             _text(source["url"], "source URL", maximum=4000)

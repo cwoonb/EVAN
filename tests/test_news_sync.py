@@ -245,5 +245,31 @@ class NewsSyncTests(unittest.TestCase):
         self.assertEqual(Path(plist["StandardOutPath"]).parent, self.state_dir)
 
 
+class MissingAnalysisTests(unittest.TestCase):
+    def test_unavailable_article_body_does_not_block_valid_news(self):
+        from scripts.build_news_feed import build_feed
+
+        feed = build_feed([
+            {"title": "A collected announcement", "published": "2026-10-18T10:00:00Z",
+             "source": "Example", "article_url": "https://example.com/ready",
+             "summary": "The announcement was published.", "important": "중요", "qwen_status": "ok"},
+            {"title": "A source without article content", "published": "2026-10-18T11:00:00Z",
+             "source": "Example", "article_url": "https://example.com/unavailable",
+             "summary": "NaN", "event_summary": "", "analysis_status": "no_content"},
+        ])
+        validated = validate_feed(feed)
+        self.assertEqual(validated["stats"]["articles"], 2)
+        unavailable = next(issue for issue in validated["issues"] if issue["analysis"]["status"] == "no_content")
+        self.assertEqual(unavailable["sources"][0]["summary"], "")
+        self.assertEqual(unavailable["analysis"]["summaryMethod"], "source-title-fallback")
+
+    def test_missing_summary_still_requires_a_string(self):
+        for invalid in (None, [], {}, 123):
+            feed = deepcopy(FEED)
+            feed["issues"][0]["sources"][0]["summary"] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(SyncError):
+                validate_feed(feed)
+
+
 if __name__ == "__main__":
     unittest.main()
