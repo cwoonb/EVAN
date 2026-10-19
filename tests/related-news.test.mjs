@@ -110,6 +110,21 @@ test("a specific technology establishes association but does not merge different
   assert.equal(result.sameEvent.length, 0);
 });
 
+test("generic AI phrases do not connect a training report to unrelated security appointments", () => {
+  const training = issue("training", ["Agentic AI", "AI Security", "Global Skills Report 2026"]);
+  const appointment = issue("appointment", ["Agentic AI", "Identity Security"]);
+  const security = issue("security", ["Agentic AI", "AI Security", "Project Perception"]);
+  assert.equal(relatedNews([training, appointment, security], { issue: training, source: training.sources[0] }).related.length, 0);
+});
+
+test("a multiword event subject alone is not a specific news topic", () => {
+  const company = issue("company", ["The Example Company"]);
+  company.event.subject = "The Example Company";
+  const other = issue("other", ["The Example Company"]);
+  other.event.subject = "The Example Company";
+  assert.equal(relatedNews([company, other], { issue: company, source: company.sources[0] }).related.length, 0);
+});
+
 test("versioned model overlap is specific; different versions alone do not match", () => {
   const item = issue("a", ["GPT-5.2"], {
     title: "OpenAI releases GPT-5.2 today",

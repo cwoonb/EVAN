@@ -31,6 +31,10 @@ const BROAD_TERMS = new Set([
   "machine learning",
   "artificial intelligence",
   "generative ai",
+  "agentic ai",
+  "에이전틱 ai",
+  "에이전틱ai",
+  "artificial intelligence ai",
   "ai agent",
   "ai agents",
   "ai 에이전트",
@@ -137,9 +141,10 @@ function articleTerms({
     ...source.searchKeywords,
   ];
   const terms = new Map<string, string>();
+  const subject = normalizeTerm(issue.event.subject);
   for (const value of values) {
     const normalized = meaningfulTerm(value);
-    if (normalized) terms.set(normalized, value);
+    if (normalized && normalized !== subject) terms.set(normalized, value);
   }
   return terms;
 }
@@ -220,7 +225,7 @@ export function relatedNews(
         candidateSpecific.has(term),
       );
       const namedPhrase = overlap.some(
-        (term) => term.includes(" ") && term.length >= 8,
+        (term) => term.split(" ").length >= 3 && term.length >= 8,
       );
       if (!specificOverlap.length && overlap.length < 2 && !namedPhrase)
         continue;
