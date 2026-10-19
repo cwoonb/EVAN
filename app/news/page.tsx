@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import NewsExplorer from "@/components/NewsExplorer";
+import "./detail.css";
 
 export const metadata: Metadata = {
   title: "AI 뉴스 탐색",

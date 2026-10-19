@@ -177,7 +177,56 @@ class FeedTests(unittest.TestCase):
         self.assertEqual(issue["analysis"]["status"], "partial_failed")
         self.assertEqual(issue["analysis"]["summaryMethod"], "existing-qwen-extractive-v1")
         self.assertNotIn("llm", issue["analysis"]["groupingMethod"])
-        self.assertEqual(set(issue["sources"][0]), {"id", "title", "source", "url", "publishedAt", "summary", "searchKeywords"})
+        self.assertEqual(set(issue["sources"][0]), {"id", "title", "source", "url", "publishedAt", "summary", "searchKeywords", "importance", "analysis"})
+
+    def test_source_analysis_preserves_existing_text_without_publishing_evidence_quotes(self):
+        feed = pipeline.build_feed([row(
+            key_facts=json.dumps([{"text": "기존 분석의 핵심 사실", "evidence": "RAW COPYRIGHT QUOTE", "private": "NEVER"}]),
+            why_it_matters="중요한 이유", developer_impact="개발자 영향",
+            watch_points='["다음 출시", "다음 출시", null, {"private":"NEVER"}]',
+            content_status="success",
+        )])
+        source = feed["issues"][0]["sources"][0]
+        self.assertEqual(source["importance"], 3)
+        self.assertEqual(source["analysis"], {
+            "whyItMatters": "중요한 이유", "developerImpact": "개발자 영향",
+            "keyFacts": ["기존 분석의 핵심 사실"], "watchPoints": ["다음 출시"],
+            "contentStatus": "success",
+        })
+        self.assertNotIn("RAW COPYRIGHT QUOTE", json.dumps(feed))
+        self.assertNotIn("PRIVATE RAW ARTICLE", json.dumps(feed))
+
+    def test_source_analysis_limits_and_redaction(self):
+        feed = pipeline.build_feed([row(
+            key_facts=[{"text": str(index) + "x" * 700} for index in range(20)],
+            developer_impact="x" * 2000, why_it_matters="로그 /Users/person/private.txt",
+            watch_points="[__import__('os').system('echo bad')]",
+        )])
+        detail = feed["issues"][0]["sources"][0]["analysis"]
+        self.assertEqual(len(detail["keyFacts"]), 8)
+        self.assertTrue(all(len(point) <= 600 for point in detail["keyFacts"]))
+        self.assertEqual(len(detail["developerImpact"]), 1200)
+        self.assertNotIn("/Users/", detail["whyItMatters"])
+        self.assertEqual(detail["watchPoints"], [])
+
+    def test_display_cache_is_additive_fingerprint_checked_and_whitelisted(self):
+        original = row()
+        article = pipeline.article_from_row(original)
+        entry = {"fingerprint": pipeline.display_fingerprint(original), "titleKo": "문서 검색 엔진 출시",
+                 "event": {"subject": "Acme", "action": "출시", "object": "문서 검색 엔진", "private": "NEVER"},
+                 "rawContent": "NEVER"}
+        display = {"version": 1, "articles": {article.id: entry}}
+        baseline = pipeline.build_feed([original])
+        enriched = pipeline.build_feed([original], display=display)
+        self.assertEqual(enriched["stats"], baseline["stats"])
+        self.assertEqual(enriched["issues"][0]["id"], baseline["issues"][0]["id"])
+        source = enriched["issues"][0]["sources"][0]
+        self.assertEqual(source["title"], original["title"])
+        self.assertEqual(source["display"], {"titleKo": "문서 검색 엔진 출시", "event": {"subject": "Acme", "action": "출시", "object": "문서 검색 엔진"}})
+        self.assertNotIn("NEVER", json.dumps(enriched))
+        self.assertNotIn("fingerprint", json.dumps(enriched))
+        stale = pipeline.build_feed([row(summary="Analysis has changed")], display=display)
+        self.assertNotIn("display", stale["issues"][0]["sources"][0])
 
     def test_summary_keeps_existing_independent_facts_without_new_generation(self):
         feed = pipeline.build_feed([row(), row(2, event_summary="Atlas 3.1은 문서 검색에 사용할 수 있다.")])

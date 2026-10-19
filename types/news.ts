@@ -1,5 +1,13 @@
 export type NewsImportance = 1 | 2 | 3 | 4 | 5;
 
+export interface NewsSourceAnalysis {
+  whyItMatters: string;
+  developerImpact: string;
+  keyFacts: string[];
+  watchPoints: string[];
+  contentStatus: string;
+}
+
 export interface NewsSource {
   id: string;
   title: string;
@@ -8,6 +16,13 @@ export interface NewsSource {
   publishedAt: string;
   summary: string;
   searchKeywords: string[];
+  // Optional additions keep already published version-1 feeds readable.
+  importance?: NewsImportance;
+  analysis?: NewsSourceAnalysis;
+  display?: {
+    titleKo: string;
+    event: { subject: string; action: string; object: string };
+  };
 }
 
 export interface NewsEvent {

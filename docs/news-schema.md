@@ -16,9 +16,9 @@ python3 -m unittest discover -s tests -p test_news_pipeline.py -v
 
 ## 입력과 검증
 
-필수 CSV 열은 `title`, `published`, `article_url`입니다. 현재 분석기의 28개 열을 수용하되, 필요한 분석 열만 읽어 공개 필드로 변환합니다. UTF-8과 UTF-8 BOM을 지원합니다.
+필수 CSV 열은 `title`, `published`, `article_url`입니다. 기존 28개 열과 확장된 43개 열을 수용하되, 필요한 분석 열만 읽어 공개 필드로 변환합니다. UTF-8과 UTF-8 BOM을 지원합니다.
 
-28개 입력 열의 처리 범위는 다음과 같습니다.
+입력 열의 처리 범위는 다음과 같습니다.
 
 | CSV 열 | 처리 |
 | --- | --- |
@@ -38,6 +38,11 @@ python3 -m unittest discover -s tests -p test_news_pipeline.py -v
 | `laya_status` | 개별 모델 상태는 공개 계약에 없어 제외 |
 | `qwen_status` | 기존 요약의 분석 출처를 `summaryMethod`에 정직하게 표시하는 데 사용 |
 | `analysis_status` | `analysis.status`에 보존 |
+| `why_it_matters`, `developer_impact` | 출처별 `analysis.whyItMatters`, `analysis.developerImpact` |
+| `key_facts` | 문자열 또는 `{text, evidence}` 배열에서 `text`만 출처별 `analysis.keyFacts`로 공개. 원문 인용 `evidence`와 다른 키는 제외 |
+| `watch_points` | 출처별 `analysis.watchPoints` |
+| `content_status` | 본문 수집 상태만 `analysis.contentStatus`로 공개. 본문·수집 오류·내부 경로 제외 |
+| `link`, `source_url`, `content_error`, `matched_queries`, `validated_search_keywords`, `rejected_search_keywords`, `relevance_status`, `ingested_at`, `content_last_attempt`, `content_attempts` | 기존 공개 계약과 무관한 수집 메타데이터는 제외 |
 
 - `NaN`, `None`, `null`, `NaT`, `<NA>`, 공백은 빈 값으로 처리합니다. JSON에 `NaN`이나 `Infinity`를 쓰지 않습니다.
 - 키워드 배열은 JSON 배열, Python 문자열 배열, 기존 `A | B` 형식을 지원합니다. JSON 외 Python 형식에는 `ast.literal_eval`만 사용하며 코드를 실행하지 않습니다. `keyword_types`의 다섯 가지 알려진 분류 값도 같은 규칙으로 평탄화하므로 기존 `keywords`가 비어 있어도 검색할 수 있습니다. 그 외 중첩 객체는 공개 키워드로 변환하지 않습니다.
@@ -79,7 +84,9 @@ python3 -m unittest discover -s tests -p test_news_pipeline.py -v
 - `stats`: `inputRows`, `articles`, `issues`, `duplicates`, `skipped`.
 - `inputRows = articles + duplicates + skipped`이며, `articles`는 모든 `issues[].sources` 길이의 합입니다.
 - 이슈: 식별자, 제목, 통합 요약, 중요도, 분류, 사건 유형, 최초/최신 게시 시각, 키워드/검색어/신기술 후보, 사건 필드, 출처 목록, 분석 상태/방법.
-- 출처: `id`, `title`, `source`, `url`, `publishedAt`, `summary`, `searchKeywords`만 포함합니다.
+- 출처: `id`, `title`, `source`, `url`, `publishedAt`, `summary`, `searchKeywords`에 기사별 `importance`와 `analysis`를 추가합니다. 이미 배포된 version-1 JSON도 읽을 수 있도록 두 필드는 선택 사항입니다.
+- 출처 `analysis`: `whyItMatters`, `developerImpact`, `keyFacts`, `watchPoints`, `contentStatus`만 포함합니다. 이유·영향은 각각 최대 1,200자, 사실·관찰 목록은 각각 최대 8개·항목당 600자입니다. 기존 Qwen 분석 문장을 보존하며 별도 검증된 사실로 승격하지 않습니다. 없으면 빈 값으로 남깁니다.
+- 출처의 선택적 `display`: 별도로 캐시한 `titleKo`와 `event.subject/action/object`의 한국어 표시값입니다. 원본 제목·원문 URL·사건 정보는 그대로 보존합니다. 원본 입력 fingerprint가 일치하는 캐시만 사용하며 fingerprint와 캐시 내부 자료는 공개하지 않습니다. 표시 캐시가 없거나 손상되어도 뉴스 생성·동기화는 기존 분석으로 계속됩니다.
 - `issue.publishedAt`은 그룹의 가장 이른 기사 게시 시각, `issue.updatedAt`은 가장 늦은 기사 게시 시각입니다. `latestPublishedAt`은 전체 출처의 가장 늦은 게시 시각입니다. 날짜 시각은 UTC ISO 8601 `Z` 형식입니다. `event.date`는 `YYYY-MM-DD` 또는 빈 문자열입니다.
 - 공개 문자열 제한: 출처 제목 500자, 출처 요약 1,000자, 이슈 제목 160자, 통합 요약 약 1,103자 이내, 사건 요약 900자입니다.
 
@@ -88,6 +95,8 @@ python3 -m unittest discover -s tests -p test_news_pipeline.py -v
 ## 안정성 및 동기화
 
 기사 ID는 정규화 URL hash, 이슈 ID는 정렬한 출처 ID hash입니다. CSV 행 순서가 바뀌어도 ID·그룹·revision이 같습니다. 이슈의 출처 구성 자체가 바뀌면 이슈 ID가 바뀔 수 있습니다.
+
+기사별 AI 질문과 댓글의 `article_id`는 이 공개 출처 ID를 사용합니다. 원래 CSV의 `art_*`와 다른 기존 공개 ID를 그대로 유지하므로 과거 링크와 댓글 연결이 그룹 재편으로 바뀌지 않습니다. 화면의 동일 사건은 기존 보수적 검사로 확인된 `issue.id`/`sources`를 기준으로 합니다. 원래 `cluster_id`가 같아도 사건 충돌 검사를 우회하지 않습니다.
 
 `revision`은 `generatedAt`을 제외한 정규화 공개 데이터의 SHA-256 64자리 값입니다. 같은 입력을 다시 실행하면 생성 시각이 달라도 revision이 같습니다. 중요도 내림차순, 최신 기사 내림차순, 고정 ID 순서로 이슈를 정렬합니다.
 

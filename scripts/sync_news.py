@@ -30,8 +30,9 @@ class SyncError(RuntimeError):
     """An error safe to show in the local synchronization log."""
 
 
-def _object(value: Any, fields: set[str], label: str) -> None:
-    if not isinstance(value, dict) or set(value) != fields:
+def _object(value: Any, fields: set[str], label: str, *, optional: set[str] | None = None) -> None:
+    if (not isinstance(value, dict) or not fields.issubset(value)
+            or set(value) - fields - (optional or set())):
         raise SyncError(f"The public feed has invalid {label} fields.")
 
 
@@ -125,7 +126,8 @@ def validate_feed(value: Any) -> dict[str, Any]:
         if not isinstance(issue["sources"], list) or not issue["sources"]:
             raise SyncError("The public feed issue must contain a validated source.")
         for source in issue["sources"]:
-            _object(source, {"id", "title", "source", "url", "publishedAt", "summary", "searchKeywords"}, "source")
+            _object(source, {"id", "title", "source", "url", "publishedAt", "summary", "searchKeywords"},
+                    "source", optional={"importance", "analysis", "display"})
             identifier = _identifier(source["id"], "source")
             if identifier in source_ids:
                 raise SyncError("The public feed has duplicate source identifiers.")
@@ -136,6 +138,28 @@ def validate_feed(value: Any) -> dict[str, Any]:
             # Preserve that absence instead of rejecting all other valid news.
             _text(source["summary"], "source summary", empty=True)
             _terms(source["searchKeywords"], "source search keywords")
+            if "display" in source:
+                display = source["display"]
+                _object(display, {"titleKo", "event"}, "source display")
+                _text(display["titleKo"], "Korean display title", maximum=80)
+                _object(display["event"], {"subject", "action", "object"}, "display event")
+                for field in display["event"]:
+                    _text(display["event"][field], "Korean display event", maximum=300, empty=True)
+            if "importance" in source and (type(source["importance"]) is not int
+                                           or source["importance"] not in range(1, 6)):
+                raise SyncError("The public feed has an invalid source importance value.")
+            if "analysis" in source:
+                detail = source["analysis"]
+                _object(detail, {"whyItMatters", "developerImpact", "keyFacts", "watchPoints", "contentStatus"},
+                        "source analysis")
+                for field in ("whyItMatters", "developerImpact"):
+                    _text(detail[field], f"source analysis {field}", maximum=1200, empty=True)
+                _text(detail["contentStatus"], "source content status", maximum=60)
+                for field in ("keyFacts", "watchPoints"):
+                    if not isinstance(detail[field], list) or len(detail[field]) > 8:
+                        raise SyncError("The public feed has invalid source analysis points.")
+                    for point in detail[field]:
+                        _text(point, "source analysis point", maximum=600)
             published_dates.append(_date(source["publishedAt"], "source publication"))
             _text(source["url"], "source URL", maximum=4000)
             try:
@@ -242,7 +266,8 @@ def run_sync(csv_path: Path, repo: str, site_repo: str, state_dir: Path,
             try:
                 result = subprocess.run(
                     [sys.executable, str(Path(__file__).with_name("build_news_feed.py")),
-                     "--csv", str(csv_path), "--output", str(output)],
+                     "--csv", str(csv_path), "--output", str(output),
+                     "--display-json", str(state_dir / "display-ko.json")],
                     capture_output=True, text=True, timeout=COMMAND_TIMEOUT, check=False,
                 )
             except (OSError, subprocess.TimeoutExpired) as error:

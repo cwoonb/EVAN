@@ -56,6 +56,21 @@ export function isNewsFeed(value: unknown): value is NewsFeed {
             typeof source.title === "string" &&
             typeof source.source === "string" &&
             typeof source.summary === "string" &&
+            (source.display === undefined ||
+              (!!source.display && typeof source.display.titleKo === "string" &&
+                !!source.display.event && ["subject", "action", "object"].every(
+                  (field) => typeof source.display?.event[field as keyof typeof source.display.event] === "string",
+                ))) &&
+            (source.importance === undefined ||
+              [1, 2, 3, 4, 5].includes(source.importance)) &&
+            (source.analysis === undefined ||
+              (!!source.analysis &&
+                typeof source.analysis.whyItMatters === "string" &&
+                typeof source.analysis.developerImpact === "string" &&
+                typeof source.analysis.contentStatus === "string" &&
+                [source.analysis.keyFacts, source.analysis.watchPoints].every(
+                  (list) => Array.isArray(list) && list.every((item) => typeof item === "string"),
+                ))) &&
             /^https?:\/\//i.test(source.url) &&
             Number.isFinite(Date.parse(source.publishedAt)),
         ),

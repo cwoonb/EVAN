@@ -110,6 +110,42 @@ def union_values(*values: tuple[str, ...], limit: int = 80) -> tuple[str, ...]:
     return parse_list([item for group in values for item in group], limit=limit)
 
 
+def analysis_points(value: object, *, fact_objects: bool = False) -> tuple[str, ...]:
+    """Publish existing analysis text, never raw evidence quotes or other keys."""
+    if isinstance(value, (list, tuple)):
+        values = value
+    else:
+        text = clean_text(value, 16000)
+        if not text:
+            return ()
+        if text[:1] in "[{(":
+            try:
+                values = json.loads(text)
+            except (ValueError, TypeError):
+                try:
+                    values = ast.literal_eval(text)
+                except (ValueError, SyntaxError, TypeError, RecursionError):
+                    return ()
+        else:
+            values = text.split("|")
+    if not isinstance(values, (list, tuple)):
+        return ()
+    result = []
+    seen = set()
+    for value in values[:40]:
+        if fact_objects and isinstance(value, dict):
+            value = value.get("text")
+        if not isinstance(value, str):
+            continue
+        text = clean_text(value, 600)
+        if text and text.casefold() not in seen:
+            result.append(text)
+            seen.add(text.casefold())
+        if len(result) >= 8:
+            break
+    return tuple(result)
+
+
 def typed_keywords(value: object) -> tuple[str, ...]:
     """Flatten only the analyzer's five known keyword classes into public tags."""
     if isinstance(value, dict):
@@ -210,6 +246,14 @@ def stable_id(prefix: str, text: str) -> str:
     return prefix + hashlib.sha256(text.encode("utf-8")).hexdigest()[:20]
 
 
+def display_fingerprint(row: dict[str, object]) -> str:
+    fields = {name: clean_text(row.get(name), limit) for name, limit in (
+        ("title", 500), ("summary", 1000), ("event_subject", 250),
+        ("event_action", 250), ("event_object", 700))}
+    text = json.dumps(fields, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 @dataclass(frozen=True)
 class Article:
     id: str
@@ -233,6 +277,12 @@ class Article:
     analysis_status: str
     qwen_status: str
     cluster_ids: tuple[str, ...]
+    why_it_matters: str = ""
+    developer_impact: str = ""
+    key_facts: tuple[str, ...] = ()
+    watch_points: tuple[str, ...] = ()
+    content_status: str = "unknown"
+    display_key: str = ""
 
 
 def article_from_row(row: dict[str, object]) -> Article | None:
@@ -261,6 +311,12 @@ def article_from_row(row: dict[str, object]) -> Article | None:
         analysis_status=clean_text(row.get("analysis_status"), 60) or "unknown",
         qwen_status=clean_text(row.get("qwen_status"), 60) or "unknown",
         cluster_ids=(cluster,) if cluster else (),
+        why_it_matters=clean_text(row.get("why_it_matters"), 1200),
+        developer_impact=clean_text(row.get("developer_impact"), 1200),
+        key_facts=analysis_points(row.get("key_facts"), fact_objects=True),
+        watch_points=analysis_points(row.get("watch_points")),
+        content_status=clean_text(row.get("content_status"), 60) or "unknown",
+        display_key=display_fingerprint(row),
     )
 
 
@@ -272,6 +328,8 @@ def representative_key(article: Article) -> tuple:
         article.object, article.version, article.date, article.event_summary,
         article.analysis_status, article.qwen_status, article.keywords,
         article.search_keywords, article.new_technologies, article.cluster_ids,
+        article.why_it_matters, article.developer_impact, article.key_facts,
+        article.watch_points, article.content_status,
     )
     return (-int(article.qwen_status == "ok"), -completeness, -article.importance, -len(article.summary), article.id, article.url, article.title, tie_breaker)
 
@@ -496,6 +554,14 @@ def issue_from_group(group: list[Article]) -> dict:
             "id": item.id, "title": item.title, "source": item.source, "url": item.url,
             "publishedAt": iso_timestamp(item.published), "summary": item.summary or item.event_summary,
             "searchKeywords": list(item.search_keywords),
+            "importance": item.importance,
+            "analysis": {
+                "whyItMatters": item.why_it_matters,
+                "developerImpact": item.developer_impact,
+                "keyFacts": list(item.key_facts),
+                "watchPoints": list(item.watch_points),
+                "contentStatus": item.content_status,
+            },
         } for item in sorted(group, key=lambda item: (item.published, item.id), reverse=True)],
         "analysis": {
             "status": status,
@@ -505,12 +571,26 @@ def issue_from_group(group: list[Article]) -> dict:
     }
 
 
-def build_feed(rows: list[dict[str, object]], *, window_hours: float = 72, generated_at: datetime | None = None) -> dict:
+def build_feed(rows: list[dict[str, object]], *, window_hours: float = 72, generated_at: datetime | None = None,
+               display: dict | None = None) -> dict:
     if not math.isfinite(window_hours) or window_hours <= 0:
         raise ValueError("게시 시간 범위는 0보다 큰 유한한 값이어야 합니다.")
     parsed = [article for row in rows if (article := article_from_row(row)) is not None]
     articles = deduplicate(parsed)
     issues = [issue_from_group(group) for group in group_articles(articles, window_hours)]
+    if isinstance(display, dict) and display.get("version") == 1 and isinstance(display.get("articles"), dict):
+        fingerprints = {item.id: item.display_key for item in articles}
+        for issue in issues:
+            for source in issue["sources"]:
+                entry = display["articles"].get(source["id"])
+                if not isinstance(entry, dict) or entry.get("fingerprint") != fingerprints.get(source["id"]):
+                    continue
+                title = clean_text(entry.get("titleKo"), 80)
+                event = entry.get("event")
+                if not title or not re.search(r"[가-힣]", title) or not isinstance(event, dict):
+                    continue
+                source["display"] = {"titleKo": title, "event": {
+                    key: clean_text(event.get(key), 300) for key in ("subject", "action", "object")}}
     issues.sort(key=lambda issue: (-issue["importance"], -parse_datetime(issue["updatedAt"]).timestamp(), issue["id"]))
     payload = {
         "version": 1,
@@ -567,12 +647,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv", type=Path, default=os.environ.get("NEWS_CSV_PATH"), help="분석 CSV 경로. 기본: NEWS_CSV_PATH 환경 변수")
     parser.add_argument("--output", type=Path, default=Path("public/data/news.json"))
+    parser.add_argument("--display-json", type=Path, default=None, help="선택적 한국어 표시 캐시. 없거나 손상되면 기존 분석을 유지합니다.")
     parser.add_argument("--window-hours", type=float, default=72, help="같은 사건의 최대 게시 시간 차이(기본 72시간)")
     args = parser.parse_args(argv)
     if args.csv is None:
         parser.error("--csv 또는 NEWS_CSV_PATH를 지정하세요.")
     try:
-        feed = build_feed(read_csv(Path(args.csv)), window_hours=args.window_hours)
+        display = None
+        if args.display_json:
+            try:
+                display = json.loads(args.display_json.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        feed = build_feed(read_csv(Path(args.csv)), window_hours=args.window_hours, display=display)
         if not feed["stats"]["articles"]:
             raise ValueError("게시 가능한 기사가 없습니다. 기존 feed를 유지합니다.")
         atomic_write(feed, args.output)

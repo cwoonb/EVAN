@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from install_news_sync import make_plist
+from install_news_sync import make_plist, make_display_plist
 from sync_news import GitHub, SyncError, run_sync, validate_feed
 
 
@@ -246,6 +246,28 @@ class NewsSyncTests(unittest.TestCase):
 
 
 class MissingAnalysisTests(unittest.TestCase):
+    def test_display_worker_has_a_bounded_separate_schedule_and_no_credentials(self):
+        plist = make_display_plist(Path("/local/news.csv"), Path("/local/.news-sync"))
+        self.assertEqual(plist["Label"], "com.evan.news-display")
+        self.assertEqual(plist["StartInterval"], 300)
+        self.assertEqual(plist["ProgramArguments"][-2:], ["--limit", "12"])
+        self.assertIn("/local/.news-sync/display-ko.json", plist["ProgramArguments"])
+        self.assertNotIn("GITHUB_TOKEN", json.dumps(plist))
+
+    def test_additive_source_analysis_is_whitelisted_and_legacy_feeds_still_work(self):
+        self.assertIs(validate_feed(deepcopy(FEED))["version"], 1)
+        from scripts.build_news_feed import build_feed
+        feed = build_feed([{"title": "Existing analysis", "published": "2026-10-18T10:00:00Z",
+                            "article_url": "https://example.com/analysis", "key_facts": '[{"text":"기존 사실"}]',
+                            "developer_impact": "개발 영향", "content_status": "success"}])
+        validate_feed(feed)
+        for field, value in (("keyFacts", [{}]), ("watchPoints", ["x"] * 9),
+                             ("whyItMatters", 3), ("contentStatus", ""), ("rawContent", "private")):
+            invalid = deepcopy(feed)
+            invalid["issues"][0]["sources"][0]["analysis"][field] = value
+            with self.subTest(field=field), self.assertRaises(SyncError):
+                validate_feed(invalid)
+
     def test_builder_event_object_limit_is_accepted_for_publication(self):
         from scripts.build_news_feed import build_feed
 

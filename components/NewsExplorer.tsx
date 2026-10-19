@@ -9,13 +9,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   ChevronDown,
-  Clock3,
-  ExternalLink,
-  Layers3,
   LoaderCircle,
   RefreshCw,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 import {
@@ -24,7 +20,8 @@ import {
   issueImage,
   useNewsFeed,
 } from "@/lib/news-feed";
-import type { NewsIssue } from "@/types/news";
+import NewsArticleDetail from "@/components/NewsArticleDetail";
+import { findArticle } from "@/lib/related-news";
 
 const PAGE_SIZE = 12;
 type SortOrder = "latest" | "importance";
@@ -35,229 +32,14 @@ type InitialFilters = {
   sort: SortOrder;
 };
 
-function analysisStatusLabel(status: string) {
-  if (status === "ok") return "기존 기사 분석 반영";
-  if (status.includes("partial")) return "일부 기사 분석 미완료";
-  if (status.includes("failed")) return "분석 미완료 · 원문 확인 필요";
-  return "분석 상태 확인 필요";
-}
-
-function summaryMethodLabel(method: string) {
-  return method.includes("qwen")
-    ? "기존 Qwen 요약 재사용 · 중복 문장 제거 후 통합"
-    : "수집된 기사 요약 재사용";
-}
-
-function groupingMethodLabel(method: string) {
-  return method.includes("event")
-    ? "주체·행동·대상 등 사건 정보 대조"
-    : "수집된 기사 정보 대조";
-}
-
-function IssueDetail({
-  issue,
-  closeHref,
-}: {
-  issue: NewsIssue;
-  closeHref: string;
-}) {
-  const fields = [
-    { label: "주체", value: issue.event.subject },
-    { label: "행동", value: issue.event.action },
-    { label: "대상", value: issue.event.object },
-    { label: "버전", value: issue.event.version },
-    { label: "사건 날짜", value: issue.event.date },
-  ];
-  return (
-    <article
-      id="issue-detail"
-      className="news-issue-detail"
-      tabIndex={-1}
-      aria-labelledby="issue-detail-title"
-    >
-      <div className="news-detail-topline">
-        <span>
-          <Layers3 size={15} aria-hidden="true" /> 같은 사건의 기사{" "}
-          {issue.sources.length}개
-        </span>
-        <Link
-          href={closeHref}
-          scroll={false}
-          className="news-detail-close"
-          aria-label="이슈 상세 닫고 뉴스 목록 보기"
-        >
-          <X size={18} aria-hidden="true" /> 목록
-        </Link>
-      </div>
-      <div className="news-detail-heading">
-        <span
-          className={`explorer-importance importance-level-${issue.importance}`}
-        >
-          중요도 {issue.importance}
-        </span>
-        <span>{issue.category}</span>
-        <span>{issue.eventType}</span>
-        <h2 id="issue-detail-title">{issue.title}</h2>
-        {issue.event.summary && issue.event.summary !== issue.summary && (
-          <p className="news-event-summary">{issue.event.summary}</p>
-        )}
-        <div className="news-detail-dates">
-          <span>
-            <Clock3 size={13} aria-hidden="true" /> 최초 기사{" "}
-            <time dateTime={issue.publishedAt}>
-              {formatNewsDate(issue.publishedAt)}
-            </time>
-          </span>
-          <span>
-            이슈 갱신{" "}
-            <time dateTime={issue.updatedAt}>
-              {formatNewsDate(issue.updatedAt)}
-            </time>
-          </span>
-        </div>
-      </div>
-      <div className="news-detail-layout">
-        <div className="news-detail-main">
-          <section className="news-detail-summary">
-            <p className="news-detail-eyebrow">ISSUE BRIEF</p>
-            <h3>여러 기사, 하나의 맥락</h3>
-            <p>
-              {issue.summary ||
-                issue.event.summary ||
-                "통합 요약을 준비하고 있습니다. 아래 원문을 확인해 주세요."}
-            </p>
-          </section>
-          <section className="news-detail-events">
-            <h3>어떤 사건인가요?</h3>
-            <dl>
-              {fields.map(({ label, value }) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value || "기사에서 확인되지 않음"}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-          <section
-            className="news-detail-sources"
-            aria-labelledby="news-source-title"
-          >
-            <div className="news-detail-section-title">
-              <h3 id="news-source-title">원문에서 확인하기</h3>
-              <span>{issue.sources.length}개 기사</span>
-            </div>
-            <p className="news-source-intro">
-              각 기사의 제목과 수집된 요약입니다. 원문은 새 탭에서 열립니다.
-            </p>
-            <ol>
-              {issue.sources.map((source, index) => (
-                <li key={source.id}>
-                  <div className="news-source-meta">
-                    <span>
-                      {String(index + 1).padStart(2, "0")}{" "}
-                      <b>{source.source}</b>
-                    </span>
-                    <time dateTime={source.publishedAt}>
-                      {formatNewsDate(source.publishedAt)}
-                    </time>
-                  </div>
-                  {/^https?:\/\//i.test(source.url) ? (
-                    <a
-                      className="news-source-link"
-                      href={source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <h4>{source.title}</h4>
-                      <ExternalLink size={16} aria-hidden="true" />
-                      <span className="visually-hidden">
-                        새 탭에서 원문 열기
-                      </span>
-                    </a>
-                  ) : (
-                    <h4>{source.title}</h4>
-                  )}
-                  {source.summary && <p>{source.summary}</p>}
-                  {source.searchKeywords.length > 0 && (
-                    <div className="news-source-keywords">
-                      {source.searchKeywords.map((keyword) => (
-                        <span key={keyword}>{keyword}</span>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </section>
-        </div>
-        <aside className="news-detail-aside">
-          <section>
-            <p className="news-detail-eyebrow">KEYWORDS</p>
-            <h3>이슈의 핵심 키워드</h3>
-            <div className="news-detail-keywords">
-              {issue.keywords.length ? (
-                issue.keywords.map((keyword) => (
-                  <Link
-                    href={`/news?keyword=${encodeURIComponent(keyword)}`}
-                    key={keyword}
-                  >
-                    # {keyword}
-                  </Link>
-                ))
-              ) : (
-                <p>키워드를 정리하고 있습니다.</p>
-              )}
-            </div>
-          </section>
-          {issue.newTechnologies.length > 0 && (
-            <section className="news-new-technologies">
-              <Sparkles size={19} aria-hidden="true" />
-              <p className="news-detail-eyebrow">TECHNOLOGY WATCH</p>
-              <h3>주목할 신기술 후보</h3>
-              <p>
-                기사에서 추출한 기술명입니다. 새로운 기술인지, 실제 적용할 수
-                있는지는 원문 확인이 필요합니다.
-              </p>
-              <ul>
-                {issue.newTechnologies.map((technology) => (
-                  <li key={technology}>{technology}</li>
-                ))}
-              </ul>
-            </section>
-          )}
-          <section className="news-analysis-note">
-            <h3>이 요약이 만들어진 방식</h3>
-            <dl>
-              <div>
-                <dt>처리 상태</dt>
-                <dd>{analysisStatusLabel(issue.analysis.status)}</dd>
-              </div>
-              <div>
-                <dt>요약 방식</dt>
-                <dd>{summaryMethodLabel(issue.analysis.summaryMethod)}</dd>
-              </div>
-              <div>
-                <dt>기사 통합 방식</dt>
-                <dd>{groupingMethodLabel(issue.analysis.groupingMethod)}</dd>
-              </div>
-            </dl>
-            <p>
-              통합 단계에서 새 AI 추론을 실행하지 않습니다. 기존 요약과 사건
-              정보는 원문을 기준으로 확인해 주세요.
-            </p>
-          </section>
-        </aside>
-      </div>
-    </article>
-  );
-}
-
 function ExplorerContent({
   initial,
   selectedId,
+  articleId,
 }: {
   initial: InitialFilters;
   selectedId: string | null;
+  articleId: string | null;
 }) {
   const { feed, loading, error, refresh } = useNewsFeed();
   const [query, setQuery] = useState(initial.query);
@@ -288,13 +70,11 @@ function ExplorerContent({
     (activePage - 1) * PAGE_SIZE,
     activePage * PAGE_SIZE,
   );
-  const selectedIssue = selectedId
-    ? feed?.issues.find(
-        (issue) =>
-          issue.id === selectedId ||
-          issue.sources.some((source) => source.id === selectedId),
-      )
-    : null;
+  const selectedArticle = findArticle(
+    feed?.issues || [],
+    selectedId,
+    articleId,
+  );
   const firstPage = Math.max(1, Math.min(activePage - 2, totalPages - 4));
   const pageNumbers = Array.from(
     { length: Math.min(5, totalPages) },
@@ -307,8 +87,11 @@ function ExplorerContent({
     if (keyword) params.set("keyword", keyword);
     if (importance) params.set("importance", String(importance));
     if (sort !== "latest") params.set("sort", sort);
-    if (issueId) params.set("issue", issueId);
-    return `/news${params.size ? `?${params.toString()}` : ""}${issueId ? "#issue-detail" : ""}`;
+    if (issueId) {
+      params.set("issue", issueId);
+      params.set("article", issueId);
+    }
+    return `/news${params.size ? `?${params.toString()}` : ""}`;
   }
 
   function clearFilters() {
@@ -324,6 +107,60 @@ function ExplorerContent({
     document
       .getElementById("news-library-heading")
       ?.scrollIntoView({ block: "start", behavior: "auto" });
+  }
+
+  if (selectedId || articleId) {
+    if (selectedArticle && feed) {
+      return (
+        <>
+          <NewsArticleDetail
+            key={selectedArticle.source.id}
+            current={selectedArticle}
+            issues={feed.issues}
+            closeHref={explorerHref()}
+          />
+          {error && (
+            <p className="news-feed-error" role="status">
+              {error}
+            </p>
+          )}
+        </>
+      );
+    }
+    if (loading && !feed) {
+      return (
+        <div className="news-explorer-loading" role="status">
+          <LoaderCircle className="spin" size={25} aria-hidden="true" />
+          <p>기사와 분석을 불러오고 있습니다.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="news-issue-missing" role="status">
+        <h1>
+          {error
+            ? "뉴스 데이터를 불러오지 못했습니다."
+            : "이 기사를 현재 데이터에서 찾을 수 없습니다."}
+        </h1>
+        <p>
+          {error ||
+            "데이터가 갱신되었을 수 있습니다. 뉴스 목록에서 키워드로 다시 찾아보세요."}
+        </p>
+        {error && (
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="article-original"
+          >
+            다시 불러오기 <RefreshCw size={16} aria-hidden="true" />
+          </button>
+        )}
+        <Link href={explorerHref()}>
+          뉴스 목록 보기 <ArrowRight size={15} aria-hidden="true" />
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -389,21 +226,6 @@ function ExplorerContent({
             ? "이전에 불러온 이슈와 원문은 계속 확인할 수 있습니다."
             : "잠시 후 다시 불러와 주세요."}
         </p>
-      )}
-      {selectedIssue && (
-        <IssueDetail issue={selectedIssue} closeHref={explorerHref()} />
-      )}
-      {selectedId && feed && !selectedIssue && (
-        <div className="news-issue-missing" role="status">
-          <h2>이 이슈를 현재 데이터에서 찾을 수 없습니다.</h2>
-          <p>
-            이슈가 갱신되었을 수 있습니다. 최신 목록에서 키워드로 다시
-            찾아보세요.
-          </p>
-          <Link href={explorerHref()} scroll={false}>
-            뉴스 목록 보기 <ArrowRight size={15} aria-hidden="true" />
-          </Link>
-        </div>
       )}
       <section
         className="news-explorer-library"
@@ -695,6 +517,7 @@ export default function NewsExplorer() {
       key={JSON.stringify(initial)}
       initial={initial}
       selectedId={params.get("issue")}
+      articleId={params.get("article")}
     />
   );
 }

@@ -10,22 +10,27 @@
     "typecheck": "tsc --noEmit",
     "test": "python3 -m unittest discover -s tests -p 'test_*.py'",
     "news:build": "python3 scripts/build_news_feed.py",
-    "news:sync": "python3 scripts/sync_news.py --once"
+    "news:sync": "python3 scripts/sync_news.py --once",
+    "test:comments": "node supabase/tests/comments.security.test.mjs",
+    "test:related": "node --test tests/related-news.test.mjs",
+    "test:presentation": "node --test tests/news-presentation.test.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "lucide-react": "^1.57.0",
     "next": "16.4.1",
     "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "lucide-react": "^1.57.0"
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@tailwindcss/postcss": "^4.3.3",
-    "tailwindcss": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.9.3",
     "eslint": "^9.39.0",
-    "eslint-config-next": "16.4.1"
+    "eslint-config-next": "16.4.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
   }
 }
