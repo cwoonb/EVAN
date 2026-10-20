@@ -15,10 +15,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from jwt import PyJWKClient
+from server.code_auth import CodeAuth
 
 from server.news_gateway import (
     MAX_BODY_BYTES, NewsStore, RateLimiter, RequestError,
-    model_messages, render_answer, retrieve, validate_request,
+    model_messages, render_answer, resolved_scope, retrieve, validate_request,
 )
 
 
@@ -40,10 +41,11 @@ class Settings:
     state_path: Path
     per_minute: int = 6
     per_day: int = 100
+    code_auth_path: Path | None = None
 
     @property
     def configured(self) -> bool:
-        return bool(self.supabase_url and self.csv_path)
+        return bool((self.supabase_url or self.code_auth_path) and self.csv_path)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -60,11 +62,13 @@ class Settings:
         if parsed_model.scheme not in {"http", "https"} or not parsed_model.hostname or parsed_model.username or parsed_model.password or parsed_model.query or parsed_model.fragment:
             raise ValueError("VLLM_BASE_URL is invalid")
         csv = os.getenv("NEWS_CSV_PATH", "")
+        code_path = os.getenv("AI_CODE_AUTH_FILE", "")
         return cls(auth_url, Path(csv).expanduser().resolve() if csv else None, origins,
                    model_url, os.getenv("QWEN_MODEL", "qwen3.8-27b"), os.getenv("VLLM_API_KEY", ""),
                    Path(os.getenv("RATE_LIMIT_DB", "server/.state/rate-limits.sqlite3")).expanduser().resolve(),
                    integer_setting("CHAT_REQUESTS_PER_MINUTE", 6, 60),
-                   integer_setting("CHAT_REQUESTS_PER_DAY", 100, 1_000))
+                   integer_setting("CHAT_REQUESTS_PER_DAY", 100, 1_000),
+                   Path(code_path).expanduser().resolve() if code_path else None)
 
 
 class SupabaseVerifier:
@@ -143,7 +147,7 @@ async def ask_model(settings: Settings, request: dict, evidence: list) -> dict:
                 raise ValueError("No text answer")
         except (ValueError, KeyError, IndexError, TypeError):
             raise RuntimeError("AI 응답을 확인하지 못했습니다. 다시 질문해주세요.") from None
-    return render_answer(raw, evidence)
+    return render_answer(raw, evidence, request=request)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -154,8 +158,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                        allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"],
                        expose_headers=["Retry-After"], max_age=600)
     store = NewsStore(settings.csv_path) if settings.csv_path else None
-    verifier = SupabaseVerifier(settings.supabase_url) if settings.supabase_url else None
+    code_auth = CodeAuth.load(settings.code_auth_path) if settings.code_auth_path else None
+    verifier = code_auth or (SupabaseVerifier(settings.supabase_url) if settings.supabase_url else None)
     limiter = RateLimiter(settings.state_path, settings.per_minute, settings.per_day) if settings.configured else None
+    login_limiter = RateLimiter(settings.state_path.with_name("login-limits.sqlite3"), 10, 100) if code_auth else None
+    global_login_limiter = RateLimiter(settings.state_path.with_name("login-global.sqlite3"), 60, 1000) if code_auth else None
     slots = asyncio.Semaphore(2)
 
     @app.middleware("http")
@@ -168,6 +175,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/healthz")
     async def health():
         return JSONResponse({"status": "configured" if settings.configured else "setup_required"}, status_code=200 if settings.configured else 503)
+
+    @app.get("/v1/auth/config")
+    async def auth_config():
+        if not settings.configured:
+            return JSONResponse({"configured": False}, status_code=503)
+        return {"configured": True, "mode": "code" if code_auth else "supabase"}
+
+    @app.post("/v1/auth/session")
+    async def code_session(request: Request):
+        origin = request.headers.get("origin")
+        if origin and origin not in settings.allowed_origins:
+            return JSONResponse({"detail": "허용되지 않은 사이트입니다."}, status_code=403)
+        if not code_auth or not login_limiter or not global_login_limiter:
+            return JSONResponse({"detail": "접속 코드 인증이 설정되지 않았습니다."}, status_code=503)
+        if request.headers.get("content-type", "").split(";", 1)[0].strip() != "application/json":
+            return JSONResponse({"detail": "JSON 형식으로 요청해주세요."}, status_code=415)
+        address = request.client.host if request.client else "unknown"
+        # Cloudflare overwrites this header. Trust it only from our local tunnel.
+        if address in {"127.0.0.1", "::1"}:
+            import ipaddress
+            try:
+                address = str(ipaddress.ip_address(request.headers.get("cf-connecting-ip", address)))
+            except ValueError:
+                pass
+        retry = max(await asyncio.to_thread(login_limiter.consume, code_auth.client_key(address)),
+                    await asyncio.to_thread(global_login_limiter.consume, "all"))
+        if retry:
+            return JSONResponse({"detail": "접속 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."}, status_code=429, headers={"Retry-After": str(retry)})
+        try:
+            payload = await request.json()
+            if not isinstance(payload, dict) or set(payload) != {"code"}:
+                raise ValueError()
+            return await asyncio.to_thread(code_auth.login, payload["code"])
+        except RequestError as error:
+            return JSONResponse({"detail": str(error)}, status_code=401)
+        except (ValueError, UnicodeDecodeError, TypeError):
+            return JSONResponse({"detail": "접속 코드를 확인해주세요."}, status_code=400)
 
     @app.post("/v1/chat")
     async def chat(request: Request):
@@ -198,12 +242,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             acquired = True
             corpus, revision = await asyncio.to_thread(store.snapshot)
             evidence = retrieve(corpus, payload)
+            applied_scope = resolved_scope(payload)
             if not evidence:
-                return {"answer": "현재 EVAN 뉴스 데이터에서 질문과 관련된 기사를 찾지 못했습니다. 회사·모델·기술 이름을 구체적으로 입력해주세요.", "sources": [], "scope": payload["scope"], "revision": revision}
+                return {"answer": "현재 EVAN 뉴스 데이터에서 질문과 관련된 기사를 찾지 못했습니다. 회사·모델·기술 이름을 구체적으로 입력해주세요.", "sources": [], "scope": applied_scope, "revision": revision}
             if all(item.kind == "title" for item in evidence):
-                return {"answer": "현재 검색된 기사는 본문을 수집하지 못했고 기존 AI 분석도 없습니다. 제목과 출처만 확인할 수 있어 질문의 구체적인 사실을 검증할 수 없습니다. 아래 원문 출처를 확인해주세요.", "sources": [item.public_source(index + 1) for index, item in enumerate(evidence)], "scope": payload["scope"], "revision": revision}
+                return {"answer": "현재 검색된 기사는 본문을 수집하지 못했고 기존 AI 분석도 없습니다. 제목과 출처만 확인할 수 있어 질문의 구체적인 사실을 검증할 수 없습니다. 아래 원문 출처를 확인해주세요.", "sources": [item.public_source(index + 1) for index, item in enumerate(evidence)], "scope": applied_scope, "revision": revision}
             answer = await ask_model(settings, payload, evidence)
-            return {**answer, "scope": payload["scope"], "revision": revision}
+            return {**answer, "scope": applied_scope, "revision": revision}
         except asyncio.TimeoutError:
             return JSONResponse({"detail": "AI가 다른 질문에 답하고 있습니다. 잠시 후 다시 시도해주세요."}, status_code=503, headers={"Retry-After": "10"})
         except RequestError as error:

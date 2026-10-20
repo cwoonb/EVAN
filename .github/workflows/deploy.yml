@@ -105,6 +105,8 @@ jobs:
         run: npm run test:related
       - name: Test news reading presentation
         run: npm run test:presentation
+      - name: Test AI conversation and public endpoint validation
+        run: npm run test:ai
       - name: Test comment database permissions
         run: npm run test:comments
       - name: Configure Pages

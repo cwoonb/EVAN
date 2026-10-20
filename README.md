@@ -56,10 +56,12 @@ python3 scripts/install_news_sync.py --csv /absolute/path/to/news_analysis.csv -
 
 브라우저 공개 설정은 [`.env.example`](.env.example)을 복사한 `.env.local`에 입력합니다. Pages에서는 같은 값을 저장소 Actions Variables `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `EVAN_API_URL`에 입력하고 다시 배포합니다. 이 값은 공개 HTTPS 서비스 주소와 공개용 publishable key입니다. 비밀키와 로컬 모델 주소는 브라우저 설정에 넣지 않습니다.
 
-1. Supabase 프로젝트를 준비하고 [댓글 SQL·인증 설정](supabase/README.md)을 적용합니다. 기존 뉴스 데이터를 변경하는 SQL은 없습니다.
-2. [API 게이트웨이](server/README.md)에 서버 전용 CSV 경로, vLLM 모델, Supabase JWT 검증 정보를 설정합니다.
-3. HTTPS 리버스 프록시로 인증된 API 경로만 제공하고, 브라우저의 공개 API 주소를 연결합니다. vLLM은 루프백에 유지합니다.
-4. 로그인 후 기사별 AI 질문과 댓글 작성·답글·본인 수정·삭제·신고를 확인합니다. 설정 전에도 공개 뉴스·관련 기사 탐색은 그대로 작동합니다.
+1. [API 게이트웨이](server/README.md)에 서버 전용 CSV 경로와 기존 vLLM 모델을 설정합니다. AI는 개인 접속 코드 또는 Supabase 로그인 중 하나로 인증합니다. 접속 코드 방식은 댓글 DB 없이 사용할 수 있습니다.
+2. [Mac AI 서비스](docs/ai-service.md)로 루프백 API와 임시 HTTPS 터널을 실행합니다. 터널 주소가 바뀌면 공개 `EVAN_API_URL`과 Pages 배포를 자동 갱신합니다. vLLM은 루프백에 유지합니다.
+3. 기사 탭이나 모든 페이지 우하단의 `EVAN AI`를 열어 질문합니다. 기사별 대화와 전체 뉴스 대화는 구분하며 같은 기사의 탭과 작은 창은 대화를 공유합니다. 홈 입력창도 이 실제 API를 사용합니다.
+4. 댓글을 연결할 때는 Supabase 프로젝트에 [댓글 SQL·인증 설정](supabase/README.md)을 별도로 적용합니다. 기존 뉴스 데이터를 변경하는 SQL은 없습니다. AI 접속 코드는 댓글 작성 권한을 부여하지 않습니다.
+
+AI는 기존 LAYA 분류와 Qwen 분석, 성공적으로 수집한 기사 본문에서 근거를 검색합니다. 관련 기업·산업 질문도 받지만 실시간 시세 DB가 없으므로 종목코드·현재 가격·상장 여부를 만들어 내지 않습니다. 대화는 메모리에서만 유지하고 접속 코드는 저장하지 않습니다. 세션 토큰은 해당 탭에 최대 8시간 보관합니다. Mac이나 모델이 꺼지면 AI 연결 오류를 표시하며 정적 뉴스는 계속 읽을 수 있습니다.
 
 자세한 데이터 경계와 배포 검증은 [플랫폼 연결 문서](docs/research-platform.md)를 참고합니다.
 

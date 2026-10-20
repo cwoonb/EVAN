@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import localFont from "next/font/local";
 import Header from "@/components/Header";
+import { Suspense } from "react";
+import FloatingAssistant from "@/components/FloatingAssistant";
 import "./globals.css";
 import "./header.css";
 import "./secondary.css";
 import "./news/news.css";
+import "./assistant.css";
 
 const pretendard = localFont({
   src: "../public/fonts/PretendardVariable.woff2",
@@ -31,6 +34,7 @@ export default function RootLayout({
         </a>
         <Header />
         {children}
+        <Suspense fallback={null}><FloatingAssistant /></Suspense>
         <footer className="site-footer">
           <Link className="footer-brand" href="/">
             EVAN<span>AI Research Workspace</span>

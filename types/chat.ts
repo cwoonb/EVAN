@@ -1,4 +1,4 @@
-export type ChatScope = "article" | "issue" | "all";
+export type ChatScope = "article" | "issue" | "all" | "auto";
 
 export interface ChatSource {
   id: string;

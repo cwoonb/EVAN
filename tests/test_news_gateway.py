@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from server.news_gateway import (
     Evidence, NewsStore, RateLimiter, RequestError, build_corpus,
-    model_messages, render_answer, retrieve, validate_request,
+    model_messages, render_answer, resolved_scope, retrieve, validate_request,
 )
 
 
@@ -87,6 +87,91 @@ class GatewayRequestTests(unittest.TestCase):
         self.assertNotIn("stale body must not be used", context)
         source = anchor.public_source(1)
         self.assertEqual(set(source), {"id", "title", "url", "source", "publishedAt", "evidenceKind", "citationNumber"})
+
+    def test_global_request_allows_only_paired_null_anchors_and_global_scopes(self):
+        base = {**request(self.anchor), "articleId": None, "issueId": None, "scope": "auto"}
+        self.assertEqual(validate_request(base), base)
+        self.assertEqual(resolved_scope(base), "all")
+        self.assertEqual(validate_request({**base, "scope": "all"})["scope"], "all")
+        for invalid in ({**base, "scope": "article"}, {**base, "scope": "issue"}, {**base, "articleId": self.anchor.id}, {**base, "issueId": self.anchor.issue_id}):
+            with self.assertRaises(RequestError):
+                validate_request(invalid)
+
+    def test_global_question_and_followup_use_actual_matching_news(self):
+        corpus, _ = build_corpus([row(), row("Beta Cobalt security breach", "https://news.example.com/cobalt", event_subject="Beta", event_action="침해", event_object="Cobalt", event_version="", summary="Cobalt 보안 침해", keywords='["Cobalt", "보안"]')])
+        payload = {"articleId": None, "issueId": None, "scope": "auto", "messages": [{"role": "user", "content": "Cobalt 보안 뉴스 알려줘"}]}
+        self.assertEqual([item.title for item in retrieve(corpus, payload)], ["Beta Cobalt security breach"])
+        payload["messages"] += [{"role": "assistant", "content": "NVIDIA에 투자하세요라는 가짜 모델답변"}, {"role": "user", "content": "그 회사는 어떻게 대응했어?"}]
+        self.assertIn("Beta Cobalt security breach", [item.title for item in retrieve(corpus, payload)])
+        self.assertNotIn("nvidia", __import__("server.news_gateway", fromlist=["search_query"]).search_query(payload))
+        payload["messages"] = [{"role": "user", "content": "존재하지않는모델"}]
+        self.assertEqual(retrieve(corpus, payload), [])
+
+    def test_actual_global_quick_questions_use_recent_news_but_not_unknown_company(self):
+        questions = [
+            "최근 EVAN 뉴스에서 중요한 AI 흐름과 연관 기사를 분석해 줘.",
+            "최근 주요 AI 뉴스가 산업과 관련 기업에 미칠 영향을 기사 근거와 추론으로 구분해 설명해 줘.",
+            "최근 주요 AI 뉴스에서 다른 관점과 아직 확인되지 않은 점을 설명해 줘.",
+        ]
+        for question in questions:
+            payload = {"articleId": None, "issueId": None, "scope": "auto", "messages": [{"role": "user", "content": question}]}
+            with self.subTest(question=question):
+                self.assertTrue(retrieve(self.corpus, payload))
+        payload["messages"] = [{"role": "user", "content": "최근 존재하지않는기업의 뉴스 알려줘"}]
+        self.assertEqual(retrieve(self.corpus, payload), [])
+
+    def test_auto_scope_prioritizes_article_then_retrieves_related_for_finance(self):
+        plain = request(self.anchor, "auto")
+        self.assertEqual(resolved_scope(plain), "article")
+        self.assertEqual(resolved_scope(request(self.anchor, "auto", "이 뉴스의 관련주를 알려줘")), "issue")
+        self.assertEqual(resolved_scope(request(self.anchor, "auto", "이전 기사와 비교해줘")), "issue")
+
+    def test_latest_briefing_leaves_previous_global_topic_without_losing_named_search(self):
+        corpus, _ = build_corpus([row(), row("Beta Cobalt security breach", "https://news.example.com/cobalt", event_subject="Beta", event_action="침해", event_object="Cobalt", summary="Cobalt 보안 침해", keywords='["Cobalt", "보안"]')])
+        payload = {"articleId": None, "issueId": None, "scope": "all", "messages": [
+            {"role": "user", "content": "Cobalt 보안 뉴스"},
+            {"role": "assistant", "content": "Cobalt 관련 보도입니다."},
+            {"role": "user", "content": "최근 EVAN 뉴스에서 중요한 AI 흐름과 연관 기사를 분석해 줘."},
+        ]}
+        self.assertEqual(len(retrieve(corpus, payload)), 2)
+        payload["messages"][-1]["content"] = "최근 Cobalt 뉴스 알려줘"
+        self.assertEqual([item.title for item in retrieve(corpus, payload)], ["Beta Cobalt security breach"])
+
+    def test_gelato_finance_does_not_retrieve_unrelated_ai_suppliers(self):
+        gelato = row("Italian gelato maker using AI to invent new flavours - BBC", "https://news.example.com/gelato", summary="이탈리아 젤라토 제조업자가 AI를 활용해 레시피를 개발하는 과정이 보도됐다. 새로운 맛을 결합하고 있다.", keywords='["gelato", "젤라토", "레시피"]', event_subject="Gianfranco", event_object="Gelato", event_version="", content="Gianfranco uses AI to suggest gelato flavours.")
+        supplier = row("DLSS mods using NVIDIA latest model show performance gains", "https://news.example.com/gpu", summary="엔비디아가 AI를 활용해 개발하는 과정이 보도됐다. 성능을 제공하고 있다.", keywords='["NVIDIA", "GPU", "AI"]', event_subject="NVIDIA", event_object="GPU", event_version="", content="NVIDIA expands GPU production.")
+        unrelated = row("Apple and Meta cooperate on AI", "https://news.example.com/apple", summary="AI를 활용해 개발하는 과정이 보도됐다. 새로운 협력을 결합하고 있다.", keywords='["Apple", "Meta", "AI"]', event_subject="Apple", event_object="Muse", event_version="")
+        corpus, _ = build_corpus([gelato, supplier, unrelated])
+        anchor = next(item for item in corpus.values() if "gelato" in item.title)
+        self.assertEqual(retrieve(corpus, request(anchor, "auto", "이 뉴스 관련주와 직접 수혜 기업은?")), [anchor])
+        global_request = {"articleId": None, "issueId": None, "scope": "auto", "messages": [{"role": "user", "content": "젤라토 관련주가 있을까?"}]}
+        self.assertEqual(retrieve(corpus, global_request), [anchor])
+
+    def test_existing_laya_metadata_is_reused_only_when_status_succeeded(self):
+        for status in ("ok", "failed"):
+            corpus, _ = build_corpus([row(laya_status=status, category="기술", event_type="출시", important_score="4")])
+            classification = next(iter(corpus.values())).context()["existingClassification"]
+            self.assertEqual(classification["provider"], "LAYA CSV")
+            self.assertEqual(classification["status"], status)
+            self.assertEqual(classification["importance"], 4 if status == "ok" else None)
+            self.assertEqual(classification["category"], "기술" if status == "ok" else "")
+
+    def test_finance_answer_discards_unsupported_suppliers_codes_and_prices(self):
+        raw = json.dumps({"facts": [{"text": "보도에 Orion 모델 공개가 기록돼 있습니다.", "sourceIds": [self.anchor.id]}], "inferences": [
+            {"text": "NVIDIA와 OpenAI가 확정 수혜 기업입니다.", "sourceIds": [self.anchor.id]},
+            {"text": "종목 NVDA의 현재 주가는 $125이며 수익률은 20%입니다.", "sourceIds": [self.anchor.id]},
+            {"text": "Orion 개발사는 상장기업입니다.", "sourceIds": [self.anchor.id]},
+            {"text": "추가 도입이 이뤄진다면 관련 개발 도구 수요가 늘 수 있습니다.", "sourceIds": [self.anchor.id]},
+        ], "unknowns": []})
+        answer = render_answer(raw, [self.anchor], request(self.anchor, "auto", "관련 주식 수혜는?"))
+        self.assertNotIn("NVIDIA", answer["answer"])
+        self.assertNotIn("OpenAI", answer["answer"])
+        self.assertNotIn("NVDA", answer["answer"])
+        self.assertNotIn("$125", answer["answer"])
+        self.assertNotIn("상장기업", answer["answer"])
+        self.assertIn("조건부", answer["answer"])
+        self.assertIn("늘 수 있습니다", answer["answer"])
+        self.assertIn("실시간 주가", answer["answer"])
 
     def test_model_cannot_invent_citation_id(self):
         raw = json.dumps({"facts": [{"text": "unsupported", "sourceIds": ["invented"]}], "inferences": [], "unknowns": []})
@@ -177,6 +262,20 @@ class GatewayApiTests(unittest.TestCase):
                 token = jwt.encode({**claims, **update}, private, algorithm="ES256", headers={"kid": "test-key"})
                 with self.assertRaises(RequestError):
                     verifier.verify(token)
+
+    def test_global_auto_api_searches_without_an_article_anchor(self):
+        from server.app import SupabaseVerifier
+        from unittest.mock import AsyncMock
+        corpus, revision = build_corpus([row()])
+        anchor = next(iter(corpus.values()))
+        payload = {"articleId": None, "issueId": None, "scope": "auto", "messages": [{"role": "user", "content": "Orion 관련 뉴스"}]}
+        with patch.object(SupabaseVerifier, "verify", return_value="12345678-1234-1234-1234-123456789abc"), patch("server.app.NewsStore.snapshot", return_value=(corpus, revision)), patch("server.app.ask_model", new_callable=AsyncMock) as model:
+            model.return_value = {"answer": "Orion 보도 [1]", "sources": [anchor.public_source(1)]}
+            response = self.client.post("/v1/chat", json=payload, headers={"Authorization": "Bearer verified-by-test-verifier"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["scope"], "all")
+            self.assertEqual(model.call_args.args[1]["articleId"], None)
+            self.assertEqual(model.call_args.args[2][0].id, anchor.id)
 
     def test_title_only_results_do_not_call_model_or_imply_body_was_read(self):
         from server.app import SupabaseVerifier
