@@ -52,7 +52,7 @@ server/.venv/bin/python scripts/run_ai_service.py launch-agent --no-initial-disp
 
 `~/Library/LaunchAgents/com.evan.ai-service.plist`를 생성하고 로그인 도메인에 등록합니다. `RunAtLoad`·`KeepAlive`로 감독 프로세스를 유지합니다. 현재 체크아웃의 가상환경 Python과 스크립트 절대 경로를 저장하므로 운영 체크아웃을 옮기면 다시 등록해야 합니다. 설치 명령은 같은 이름의 EVAN AI 작업만 교체합니다.
 
-종료 유예 시간은 90초입니다. 진행 중인 GitHub 명령의 최대 대기와 API·터널 자식 정리를 마치도록 기다립니다.
+종료 유예 시간은 90초로 설정합니다. 이 Mac의 launchd는 실제 작업에 60초를 적용합니다. 개별 GitHub 명령은 10초, API·터널 자식 정리는 합계 최대 22초로 제한해 실제 종료 예산 안에서 정리합니다.
 
 이 Mac의 감독 프로세스는 기존 전체 디스크 접근 권한을 받은 Command Line Tools Python 3.9를 사용합니다. API 자식 프로세스는 `server/.venv/bin/python`의 Python 3.12를 사용합니다. 두 경로는 `--supervisor-python`과 `--python`으로 각각 지정할 수 있습니다. vLLM 가상환경과 모델 설정은 변경하지 않습니다.
 

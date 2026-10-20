@@ -186,7 +186,7 @@ def publish_origin(args: argparse.Namespace, origin: str, state: dict, log: logg
     environment = base_environment()
     try:
         result = subprocess.run([args.gh, "variable", "set", "EVAN_API_URL", "--repo", args.repo, "--body", origin],
-                                env=environment, capture_output=True, timeout=30, check=False)
+                                env=environment, capture_output=True, timeout=10, check=False)
         if result.returncode:
             log.warning("Public API variable update failed; retry scheduled.")
             return False
@@ -195,7 +195,7 @@ def publish_origin(args: argparse.Namespace, origin: str, state: dict, log: logg
             log.info("Public API variable updated; initial deployment is reserved for the operator.")
         else:
             result = subprocess.run([args.gh, "workflow", "run", "deploy.yml", "--repo", args.repo, "--ref", "main"],
-                                    env=environment, capture_output=True, timeout=30, check=False)
+                                    env=environment, capture_output=True, timeout=10, check=False)
             if result.returncode:
                 log.warning("Pages deployment request failed; retry scheduled.")
                 return False
