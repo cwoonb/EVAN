@@ -103,6 +103,8 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Test news importance layout
         run: npm run test:layout
+      - name: Test highest-priority news summaries
+        run: npm run test:briefing
       - name: Test news image policy and fallback
         run: npm run test:images
       - name: Test related article navigation

@@ -120,13 +120,34 @@ function FeatureCard({
           {importanceLabel(5)}
         </span>
         <h3>{headline(issue)}</h3>
-        {description && <p>{description}</p>}
+        {description && <p className="briefing-core-summary">{description}</p>}
         <NewsMeta issue={issue} />
         <span className="briefing-read">
           기사와 분석 읽기 <ArrowUpRight size={16} aria-hidden="true" />
         </span>
       </div>
     </Link>
+  );
+}
+
+/** Every highest-priority issue exposes its stored summary without another click. */
+function CoreCard({ issue, filters }: { issue: NewsIssue; filters: BriefingFilters }) {
+  const description = summary(issue);
+  return (
+    <li>
+      <Link href={detailHref(issue, filters)} className="briefing-core-card">
+        <div className="briefing-core-card-top">
+          <span className="briefing-grade briefing-grade-5">{importanceLabel(5)}</span>
+          <ArrowUpRight size={18} aria-hidden="true" />
+        </div>
+        <h3>{headline(issue)}</h3>
+        {description && <p className="briefing-core-summary">{description}</p>}
+        <div className="briefing-core-card-footer">
+          <NewsMeta issue={issue} />
+          <span className="briefing-read">상세 분석 읽기</span>
+        </div>
+      </Link>
+    </li>
   );
 }
 
@@ -417,15 +438,7 @@ export default function NewsSection() {
                 {groups[5].length > 1 && (
                   <ol className="briefing-core-list">
                     {groups[5].slice(1).map((issue) => (
-                      <li key={issue.id}>
-                        <Link href={detailHref(issue, filters)}>
-                          <div>
-                            <h3>{headline(issue)}</h3>
-                            <NewsMeta issue={issue} />
-                          </div>
-                          <ArrowUpRight size={17} aria-hidden="true" />
-                        </Link>
-                      </li>
+                      <CoreCard issue={issue} filters={filters} key={issue.id} />
                     ))}
                   </ol>
                 )}
