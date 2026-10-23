@@ -16,6 +16,8 @@ export interface NewsSource {
   publishedAt: string;
   summary: string;
   searchKeywords: string[];
+  // Optional raw image URL. Rendering still requires the local approval registry.
+  image?: string;
   // Optional additions keep already published version-1 feeds readable.
   importance?: NewsImportance;
   analysis?: NewsSourceAnalysis;
@@ -40,6 +42,7 @@ export interface NewsIssue {
   summary: string;
   importance: NewsImportance;
   category: string;
+  image?: string;
   eventType: string;
   publishedAt: string;
   updatedAt: string;

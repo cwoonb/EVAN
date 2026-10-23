@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "mappingVersion": "category-artwork-v1",
+  "provider": "Built-in image_gen",
+  "purpose": "Static editorial category illustration, not actual article photography",
+  "basePrompt": "Use case: stylized-concept. Asset type: final static editorial category illustration for a dark Korean AI news website, not an actual news photograph. Create ONE single image, landscape 16:9, target 1200x675. Understated refined 3D still life. Deep navy, charcoal, restrained steel blue, low saturation, matte materials, soft broad studio light with visible central form and calm shadow detail. Center-weighted composition safe for edge cropping, simple forms readable as a small thumbnail, no busy background. Absolutely NO text, letters, numbers, chart axes, UI, icons, people, faces, real brand logos, recognisable actual consumer products, Earth/globe, robots, padlocks, neon or excessive glow. No borders, no collage, no watermark.",
+  "conversion": {
+    "format": "WebP",
+    "width": 1200,
+    "height": 675,
+    "quality": 83,
+    "method": 6,
+    "changes": "Resize and re-encode only; original generated PNGs retained outside public assets."
+  },
+  "images": [
+    {
+      "file": "technology-01.webp",
+      "category": "technology",
+      "subject": "A precise abstract silicon compute tile on a dark ceramic substrate, fine etched non-letter circuit traces branching calmly around one central square, shallow angled overhead view.",
+      "sourceFile": "exec-d41cb6a8-f0f2-4f5c-b0d0-7acfe827e649.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 102336
+    },
+    {
+      "file": "technology-02.webp",
+      "category": "technology",
+      "subject": "Three stacked geometric compute layers separated by tiny dark gaps, graphite and brushed steel-blue surfaces, central isometric precision architecture.",
+      "sourceFile": "exec-dc7d6be1-da72-4dbc-b606-225c101ca548.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 39932
+    },
+    {
+      "file": "technology-03.webp",
+      "category": "technology",
+      "subject": "An orderly field of short metal circuit fins converging into a low central processor-like abstract block, fine restrained technical texture.",
+      "sourceFile": "exec-21c8e950-7e35-44d6-b8cc-25165034bf03.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 61294
+    },
+    {
+      "file": "product-01.webp",
+      "category": "product",
+      "subject": "A purely fictional unbranded device structure assembled from two rounded dark rectangular modules and a small inset glass plane, sculptural concept, no interface or buttons.",
+      "sourceFile": "exec-6f0a5e74-8754-4bfa-a5ef-0c74eb0a9666.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 22076
+    },
+    {
+      "file": "product-02.webp",
+      "category": "product",
+      "subject": "An exploded abstract enclosure with three hovering curved graphite shells around a neutral steel-blue inner module, clearly conceptual industrial study.",
+      "sourceFile": "exec-c5085c30-ea6a-4363-9822-d0dd08dd8a74.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 24726
+    },
+    {
+      "file": "product-03.webp",
+      "category": "product",
+      "subject": "A minimal fictional desk device formed by a broad ceramic slab and one vertical rounded module, subdued glass and dark metal, no actual product resemblance.",
+      "sourceFile": "exec-73878495-37aa-403f-8a0a-e1975738ee8c.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 25740
+    },
+    {
+      "file": "business-01.webp",
+      "category": "business",
+      "subject": "Three substantial graphite architectural blocks interlock around a shared steel-blue central connector, a quiet metaphor for collaboration and organisations.",
+      "sourceFile": "exec-182ec3d4-d111-4ce1-952b-c19b7f4660cd.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 35648
+    },
+    {
+      "file": "business-02.webp",
+      "category": "business",
+      "subject": "A small group of matte navy polygonal modules linked by a few short brushed metal bridges, balanced central collaborative structure.",
+      "sourceFile": "exec-be6d0a12-2426-4550-91c3-c4db6be15748.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 30778
+    },
+    {
+      "file": "business-03.webp",
+      "category": "business",
+      "subject": "Two separated dark sculptural platforms joined by one wide steel-blue connecting span with a smaller shared central node, organisational connections.",
+      "sourceFile": "exec-798b999d-7835-4e4e-a92d-7044093000da.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 27366
+    },
+    {
+      "file": "market-01.webp",
+      "category": "market",
+      "subject": "A miniature abstract industrial infrastructure of low graphite buildings and a central network hub, sparse steel-blue connective channels, no labels or charts.",
+      "sourceFile": "exec-036f0971-cae9-4122-863a-7762094e9dac.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 54578
+    },
+    {
+      "file": "market-02.webp",
+      "category": "market",
+      "subject": "A calm sculptural array of dark vertical server-like columns with one restrained steel-blue horizontal data pathway weaving through, no glowing screens.",
+      "sourceFile": "exec-433fa911-279a-422c-85c1-0593b938d3fa.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 53986
+    },
+    {
+      "file": "market-03.webp",
+      "category": "market",
+      "subject": "Layered navy infrastructure platforms connected by a few smooth steel-blue conduits, broad centered network architecture, no graphs or numeric data.",
+      "sourceFile": "exec-2951c722-416e-485d-b89f-4f639abc062b.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 40170
+    },
+    {
+      "file": "policy-01.webp",
+      "category": "policy",
+      "subject": "A stack of completely blank navy and charcoal paper-like sheets beside a minimal civic colonnade form, central institutional still life, no writing or seals.",
+      "sourceFile": "exec-945f1048-4961-46b9-a17f-044859b1dea8.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 41288
+    },
+    {
+      "file": "policy-02.webp",
+      "category": "policy",
+      "subject": "A restrained abstract public architecture with three broad graphite columns under a steel-blue horizontal lintel and one blank rectangular document panel.",
+      "sourceFile": "exec-2288a60d-9709-435f-aef8-a6c49519611a.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 42224
+    },
+    {
+      "file": "policy-03.webp",
+      "category": "policy",
+      "subject": "Several blank dark document slabs held in a precise orderly layered arrangement over a simple architectural plinth, suggesting rules and institutions.",
+      "sourceFile": "exec-b488e0f1-32d5-4e74-bf40-23200f14ed8d.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 35578
+    },
+    {
+      "file": "security-01.webp",
+      "category": "security",
+      "subject": "A protected central graphite system block enclosed by two separated concentric rectangular structural frames, abstract access isolation, no padlocks or shield icons.",
+      "sourceFile": "exec-c204d462-f409-4747-a61c-e30b52d2ed28.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 44662
+    },
+    {
+      "file": "security-02.webp",
+      "category": "security",
+      "subject": "A sequence of three dark architectural compartments divided by thick steel-blue partition walls, one calm central passage illustrating controlled access.",
+      "sourceFile": "exec-02aaba98-fdab-4157-ad5d-5729a41e45b0.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 18468
+    },
+    {
+      "file": "security-03.webp",
+      "category": "security",
+      "subject": "A low matte graphite core seated inside a geometric layered enclosure with carefully aligned narrow access openings, quiet protected system architecture.",
+      "sourceFile": "exec-5fa21807-ae83-432e-afe0-4dcba5bd7f78.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 30250
+    },
+    {
+      "file": "other-01.webp",
+      "category": "other",
+      "subject": "A calm central folded matte navy ceramic ribbon resting on a charcoal surface, neutral abstract editorial composition.",
+      "sourceFile": "exec-f0f86b7c-cf60-4796-a7fb-dbedd04074ee.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 42790
+    },
+    {
+      "file": "other-02.webp",
+      "category": "other",
+      "subject": "Three rounded graphite stone-like geometric forms balanced around a subtle steel-blue plane, quiet nonrepresentational abstract still life.",
+      "sourceFile": "exec-76fd87b4-d1f2-4f15-b476-7eb76cf0f6af.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 46624
+    },
+    {
+      "file": "other-03.webp",
+      "category": "other",
+      "subject": "A minimal arrangement of overlapping curved navy metal panels with soft steel-blue edge reflections, neutral centered sculptural abstraction.",
+      "sourceFile": "exec-36c1b537-b356-456e-abfb-ef6d237f134d.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 25648
+    },
+    {
+      "file": "default.webp",
+      "category": "default",
+      "subject": "one broad folded dark navy plane and a gently curved charcoal panel, almost architectural but entirely abstract, quiet neutral site-wide fallback with no category, company or event implied.",
+      "sourceFile": "exec-f98538e1-bc2e-4783-91f8-36b3cbd1f603.png",
+      "width": 1200,
+      "height": 675,
+      "bytes": 25650
+    }
+  ]
+}

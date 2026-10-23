@@ -16,9 +16,9 @@ const TABS: { id: DetailTab; label: string }[] = [
   { id: "comments", label: "댓글" },
 ];
 
-function RelatedArticles({ articles }: { articles: ArticleReference[] }) {
+function RelatedArticles({ articles, closeHref }: { articles: ArticleReference[]; closeHref: string }) {
   return <ul className="article-related-list">{articles.map(({ issue, source }) => (
-    <li key={source.id}><Link href={articleHref(issue, source)} className="article-related-link">
+    <li key={source.id}><Link href={articleHref(issue, source, closeHref)} className="article-related-link">
       <div><h4>{articleTitle(issue, source)}</h4><p><span>{source.source}</span><time dateTime={source.publishedAt}>{compactNewsDate(source.publishedAt)}</time><span>중요도 {source.importance ?? issue.importance}</span></p></div>
       <ArrowUpRight size={19} aria-hidden="true" />
     </Link></li>
@@ -90,9 +90,9 @@ export default function NewsArticleDetail({ current, issues, closeHref }: {
         </div>
         <div className="article-tab-panel" id={`${panelId}-panel-ai`} role="tabpanel" aria-labelledby={`${panelId}-tab-ai`} hidden={tab !== "ai"} tabIndex={0}><ArticleChat articleId={source.id} issueId={issue.id} /></div>
         <div className="article-tab-panel article-related-panel" id={`${panelId}-panel-related`} role="tabpanel" aria-labelledby={`${panelId}-tab-related`} hidden={tab !== "related"} tabIndex={0}>
-          {related.sameEvent.length > 0 && <section><h3>동일 사건의 다른 보도</h3><RelatedArticles articles={related.sameEvent} /></section>}
-          {related.related.length > 0 && <section><h3>연관 뉴스</h3><RelatedArticles articles={related.related} /></section>}
-          {related.past.length > 0 && <section><h3>과거 뉴스</h3><RelatedArticles articles={related.past} /></section>}
+          {related.sameEvent.length > 0 && <section><h3>동일 사건의 다른 보도</h3><RelatedArticles articles={related.sameEvent} closeHref={closeHref} /></section>}
+          {related.related.length > 0 && <section><h3>연관 뉴스</h3><RelatedArticles articles={related.related} closeHref={closeHref} /></section>}
+          {related.past.length > 0 && <section><h3>과거 뉴스</h3><RelatedArticles articles={related.past} closeHref={closeHref} /></section>}
           {!related.sameEvent.length && !related.related.length && !related.past.length && <p className="article-related-empty">현재 뉴스에서 연결할 관련 기사를 찾지 못했습니다.</p>}
         </div>
         <div className="article-tab-panel" id={`${panelId}-panel-comments`} role="tabpanel" aria-labelledby={`${panelId}-tab-comments`} hidden={tab !== "comments"} tabIndex={0}><ArticleComments articleId={source.id} /></div>

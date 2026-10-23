@@ -1,0 +1,4 @@
+.news-media { position: relative; overflow: hidden; aspect-ratio: 16 / 9; min-width: 0; background: radial-gradient(ellipse at 52% 42%, #283a4b 0, #182637 42%, #0d1724 100%); }
+.news-media > img { object-fit: cover; object-position: center; }
+.news-image-classification { position: absolute; right: 8px; bottom: 7px; z-index: 1; padding: 2px 6px; border-radius: 4px; background: #07111de0; color: #c0cdda; font-size: 9px; line-height: 1.55; font-weight: 400; letter-spacing: 0; pointer-events: none; }
+@media (max-width: 600px) { .news-image-classification { right: 6px; bottom: 6px; font-size: 9px; } }

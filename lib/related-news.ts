@@ -185,9 +185,21 @@ export function findArticle(
   return issue?.sources[0] ? { issue, source: issue.sources[0] } : null;
 }
 
-/** Query routes work for newly synchronized articles on a static Pages export. */
-export function articleHref(issue: NewsIssue, source: NewsSource): string {
-  const params = new URLSearchParams({ issue: issue.id, article: source.id });
+/** Query routes retain list filters while selecting the exact article on static Pages. */
+export function articleHref(issue: NewsIssue, source: NewsSource, listHref?: string): string {
+  const params = new URLSearchParams();
+  if (listHref) {
+    const queryStart = listHref.indexOf("?");
+    if (queryStart !== -1) {
+      const listParams = new URLSearchParams(listHref.slice(queryStart + 1).split("#", 1)[0]);
+      for (const name of ["date", "grade", "q", "keyword", "sort", "importance"]) {
+        const value = listParams.get(name);
+        if (value !== null) params.set(name, value);
+      }
+    }
+  }
+  params.set("issue", issue.id);
+  params.set("article", source.id);
   return `/news?${params.toString()}`;
 }
 

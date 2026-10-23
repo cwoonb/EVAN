@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,11 +14,11 @@ import {
   X,
 } from "lucide-react";
 import {
-  filterIssues,
   formatNewsDate,
-  issueImage,
   useNewsFeed,
 } from "@/lib/news-feed";
+import { filterBriefingIssues, importanceLabel, issueDateKey, newsDateKey, normalizeNewsImportance } from "@/lib/news-layout";
+import NewsImage from "@/components/NewsImage";
 import NewsArticleDetail from "@/components/NewsArticleDetail";
 import { findArticle } from "@/lib/related-news";
 
@@ -30,6 +29,8 @@ type InitialFilters = {
   keyword: string;
   importance: number;
   sort: SortOrder;
+  date: string;
+  grade: number;
 };
 
 function ExplorerContent({
@@ -46,7 +47,10 @@ function ExplorerContent({
   const [keyword, setKeyword] = useState(initial.keyword);
   const [importance, setImportance] = useState(initial.importance);
   const [sort, setSort] = useState<SortOrder>(initial.sort);
+  const [date, setDate] = useState(initial.date);
+  const [grade, setGrade] = useState(initial.grade);
   const [page, setPage] = useState(1);
+  const dates = useMemo(() => [...new Set((feed?.issues || []).map(issueDateKey).filter(Boolean))].sort().reverse(), [feed]);
   const keywords = useMemo(
     () =>
       [
@@ -61,8 +65,9 @@ function ExplorerContent({
   );
   const filtered = useMemo(
     () =>
-      filterIssues(feed?.issues || [], { query, keyword, importance, sort }),
-    [feed, query, keyword, importance, sort],
+      filterBriefingIssues(feed?.issues || [], { query, keyword, date, grade: grade || undefined, sort })
+        .filter((issue) => !importance || (normalizeNewsImportance(issue.importance) ?? 0) >= importance),
+    [feed, query, keyword, importance, grade, date, sort],
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const activePage = Math.max(1, Math.min(page, totalPages));
@@ -86,6 +91,8 @@ function ExplorerContent({
     if (query.trim()) params.set("q", query.trim());
     if (keyword) params.set("keyword", keyword);
     if (importance) params.set("importance", String(importance));
+    if (grade) params.set("grade", String(grade));
+    if (date) params.set("date", date);
     if (sort !== "latest") params.set("sort", sort);
     if (issueId) {
       params.set("issue", issueId);
@@ -98,6 +105,8 @@ function ExplorerContent({
     setQuery("");
     setKeyword("");
     setImportance(0);
+    setGrade(0);
+    setDate("");
     setSort("latest");
     setPage(1);
   }
@@ -165,22 +174,14 @@ function ExplorerContent({
 
   return (
     <>
-      <section className="news-explorer-hero">
+      <section className="news-explorer-hero news-explorer-hero-compact">
         <Link className="news-explorer-back" href="/">
           <ArrowLeft size={14} aria-hidden="true" /> 오늘의 브리핑
         </Link>
-        <p className="news-explorer-eyebrow">
-          <span /> THE AI NEWSROOM
-        </p>
         <div className="news-explorer-title-row">
           <div>
-            <h1>
-              뉴스를 넘어, <em>맥락으로.</em>
-            </h1>
-            <p>
-              키워드로 찾고, 같은 사건을 함께 읽고, 기술의 다음 변화를
-              살펴보세요.
-            </p>
+            <h1>전체 뉴스 탐색</h1>
+            <p>날짜와 키워드로 사건을 찾고, 실제 원문을 확인하세요.</p>
           </div>
           {feed && (
             <div className="news-explorer-stats">
@@ -269,6 +270,17 @@ function ExplorerContent({
         </form>
         <div className="news-explorer-filters">
           <label>
+            <span>날짜 · 한국 시간</span>
+            <div className="news-filter-select">
+              <select value={date} onChange={(event) => { setDate(event.target.value); setPage(1); }} aria-label="뉴스 날짜 필터">
+                <option value="">전체 날짜</option>
+                {date && !dates.includes(date) && <option value={date}>{date} · 현재 뉴스 없음</option>}
+                {dates.map((day) => <option key={day} value={day}>{day}</option>)}
+              </select>
+              <ChevronDown size={14} aria-hidden="true" />
+            </div>
+          </label>
+          <label>
             <span>키워드</span>
             <div className="news-filter-select">
               <select
@@ -296,17 +308,23 @@ function ExplorerContent({
             <span>중요도</span>
             <div className="news-filter-select">
               <select
-                value={importance}
+                value={grade ? `grade-${grade}` : `min-${importance}`}
                 onChange={(event) => {
-                  setImportance(Number(event.target.value));
+                  const [kind, value] = event.target.value.split("-");
+                  setImportance(kind === "min" ? Number(value) : 0);
+                  setGrade(kind === "grade" ? Number(value) : 0);
                   setPage(1);
                 }}
-                aria-label="최소 중요도 필터"
+                aria-label="뉴스 중요도 필터"
               >
-                <option value={0}>전체 (1–5)</option>
-                <option value={3}>3 이상 · 주요 뉴스</option>
-                <option value={4}>4 이상 · 주목할 뉴스</option>
-                <option value={5}>5 · 가장 중요한 뉴스</option>
+                <option value="min-0">전체 (1–5)</option>
+                <option value="min-3">3 이상 · 중요 이상</option>
+                <option value="min-4">4 이상 · 매우중요 이상</option>
+                <option value="grade-5">5 · 최고중요</option>
+                <option value="grade-4">4 · 매우중요</option>
+                <option value="grade-3">3 · 중요</option>
+                <option value="grade-2">2 · 관심</option>
+                <option value="grade-1">1 · 일반</option>
               </select>
               <ChevronDown size={14} aria-hidden="true" />
             </div>
@@ -328,7 +346,7 @@ function ExplorerContent({
               <ChevronDown size={14} aria-hidden="true" />
             </div>
           </label>
-          {(query || keyword || importance || sort !== "latest") && (
+          {(query || keyword || importance || grade || date || sort !== "latest") && (
             <button
               className="news-filter-reset"
               type="button"
@@ -349,6 +367,8 @@ function ExplorerContent({
             )}
             <b>{filtered.length.toLocaleString("ko-KR")}</b>개
             {keyword ? ` · #${keyword}` : ""}
+            {grade ? ` · 중요도 ${importanceLabel(grade)}` : ""}
+            {date ? ` · ${date}` : ""}
           </p>
           <span>
             {filtered.length
@@ -398,17 +418,14 @@ function ExplorerContent({
                 className={`news-explorer-card importance-level-${issue.importance}`}
               >
                 <div className="news-explorer-card-image">
-                  <Image
-                    src={issueImage(issue)}
-                    alt=""
-                    fill
+                  <NewsImage
+                    news={{ id: issue.sources[0]?.id || issue.id, url: issue.sources[0]?.url, title: issue.title, category: issue.category, publishedAt: issue.updatedAt, image: issue.sources[0]?.image || issue.image }}
                     sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
                   />
                   <span
                     className={`explorer-importance importance-level-${issue.importance}`}
                   >
-                    중요도 {issue.importance}
-                    {issue.importance <= 2 ? " · 참고" : ""}
+                    중요도 {importanceLabel(issue.importance)}
                   </span>
                   <span className="news-explorer-card-arrow">
                     <ArrowUpRight size={19} aria-hidden="true" />
@@ -419,8 +436,8 @@ function ExplorerContent({
                     <span>{issue.category}</span>
                     <span>기사 {issue.sources.length}개</span>
                   </div>
-                  <h3>{issue.title}</h3>
-                  <p>{issue.event.summary || issue.summary}</p>
+                  <h3>{issue.sources[0]?.display?.titleKo || issue.title}</h3>
+                  {issue.summary.trim() !== issue.title.trim() && <p>{issue.summary}</p>}
                   <div className="news-explorer-card-keywords">
                     {issue.keywords.slice(0, 3).map((entry) => (
                       <span key={entry}># {entry}</span>
@@ -506,11 +523,17 @@ function ExplorerContent({
 export default function NewsExplorer() {
   const params = useSearchParams();
   const importance = Number(params.get("importance") || 0);
+  const requestedGrade = Number(params.get("grade") || 0);
+  const grade = [1, 2, 3, 4, 5].includes(requestedGrade) ? requestedGrade : importance === 5 ? 5 : 0;
+  const rawDate = params.get("date") || "";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && newsDateKey(`${rawDate}T12:00:00+09:00`) === rawDate ? rawDate : "";
   const initial: InitialFilters = {
     query: params.get("q") || "",
     keyword: params.get("keyword") || "",
-    importance: [0, 3, 4, 5].includes(importance) ? importance : 0,
+    importance: grade ? 0 : [0, 3, 4].includes(importance) ? importance : 0,
     sort: params.get("sort") === "importance" ? "importance" : "latest",
+    date,
+    grade,
   };
   return (
     <ExplorerContent

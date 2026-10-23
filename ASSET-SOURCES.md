@@ -22,3 +22,37 @@ Images were downloaded from Unsplash as JPEGs at quality 85, with maximum width 
 `public/fonts/PretendardVariable.woff2` is Pretendard Variable v1.3.9 by Kil Hyung-jin. [Official repository](https://github.com/orioncactus/pretendard), [download source](https://raw.githubusercontent.com/orioncactus/pretendard/v1.3.9/packages/pretendard/dist/web/variable/woff2/PretendardVariable.woff2).
 
 The font is licensed under SIL Open Font License 1.1. The original license is preserved at `public/fonts/OFL.txt`.
+
+
+## Generated news category artwork
+
+This section adds final generated WebP artwork. The earlier Images section describes the existing JPEG collection. These new assets are neutral category illustrations, not photographs of a company, product, person, or news event. They were generated once with the built-in `image_gen` tool, using one independent call per asset; no CLI/API key, local GPU, or third-party paid service was used. Only resizing and WebP re-encoding were applied afterward. No SVG placeholders are used for this collection.
+
+All files below are stored in `public/images/news-fallbacks/`, at **1200 × 675**. Full generation prompts, source PNG filenames, conversion settings and exact byte sizes are recorded in [`docs/news-image-prompts.json`](docs/news-image-prompts.json). The original PNGs remain outside the public site; their private local paths are kept only in the ignored generation ledger.
+
+| File | Category | Bytes |
+| --- | --- | ---: |
+| [technology-01.webp](public/images/news-fallbacks/technology-01.webp) | technology | 102336 |
+| [technology-02.webp](public/images/news-fallbacks/technology-02.webp) | technology | 39932 |
+| [technology-03.webp](public/images/news-fallbacks/technology-03.webp) | technology | 61294 |
+| [product-01.webp](public/images/news-fallbacks/product-01.webp) | product | 22076 |
+| [product-02.webp](public/images/news-fallbacks/product-02.webp) | product | 24726 |
+| [product-03.webp](public/images/news-fallbacks/product-03.webp) | product | 25740 |
+| [business-01.webp](public/images/news-fallbacks/business-01.webp) | business | 35648 |
+| [business-02.webp](public/images/news-fallbacks/business-02.webp) | business | 30778 |
+| [business-03.webp](public/images/news-fallbacks/business-03.webp) | business | 27366 |
+| [market-01.webp](public/images/news-fallbacks/market-01.webp) | market | 54578 |
+| [market-02.webp](public/images/news-fallbacks/market-02.webp) | market | 53986 |
+| [market-03.webp](public/images/news-fallbacks/market-03.webp) | market | 40170 |
+| [policy-01.webp](public/images/news-fallbacks/policy-01.webp) | policy | 41288 |
+| [policy-02.webp](public/images/news-fallbacks/policy-02.webp) | policy | 42224 |
+| [policy-03.webp](public/images/news-fallbacks/policy-03.webp) | policy | 35578 |
+| [security-01.webp](public/images/news-fallbacks/security-01.webp) | security | 44662 |
+| [security-02.webp](public/images/news-fallbacks/security-02.webp) | security | 18468 |
+| [security-03.webp](public/images/news-fallbacks/security-03.webp) | security | 30250 |
+| [other-01.webp](public/images/news-fallbacks/other-01.webp) | other | 42790 |
+| [other-02.webp](public/images/news-fallbacks/other-02.webp) | other | 46624 |
+| [other-03.webp](public/images/news-fallbacks/other-03.webp) | other | 25648 |
+| [default.webp](public/images/news-fallbacks/default.webp) | default | 25650 |
+
+Usage and permission policy: [`docs/news-images.md`](docs/news-images.md). Total optimized size: 871812 bytes.

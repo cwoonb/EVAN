@@ -1,4 +1,16 @@
 /* Live news and the news explorer share the same visual language. */
+.news-explorer-hero-compact .news-explorer-back { margin-bottom: 8px; }
+.news-explorer-hero-compact .news-explorer-title-row { margin-top: 0; }
+.news-explorer-hero-compact .news-explorer-title-row h1 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -1px; }
+.news-explorer-hero-compact .news-explorer-title-row p { margin-top: 8px; color: #bbcada; }
+.news-explorer-library .news-explorer-filters { flex-wrap: wrap; }
+.news-explorer-library .news-explorer-filters > label { flex: 1 1 175px; min-width: 0; }
+.news-explorer-card .news-explorer-card-image { aspect-ratio: 16 / 9; }
+.news-explorer-card .news-explorer-card-image::after { display: none; }
+.news-explorer-card .news-explorer-card-arrow { top: 14px; bottom: auto; }
+.news-explorer-card .news-explorer-card-image img { filter: saturate(.75); }
+.news-explorer-grid .news-explorer-card-body { background: #14243a; }
+.news-explorer-grid .news-explorer-card-body > p { color: #bbcada; }
 .live-feed-label {
   color: #a8c9e5;
   font-size: 10px;

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { assetPath } from "@/lib/asset-path";
+import { resolveNewsImage } from "@/lib/news-images";
 import type { NewsFeed, NewsIssue } from "@/types/news";
 
 type FeedState = {
@@ -155,25 +156,11 @@ export function issueHref(issue: Pick<NewsIssue, "id" | "sources">) {
   return `/news?issue=${encodeURIComponent(issue.sources[0]?.id || issue.id)}`;
 }
 
+/** Compatibility accessor. New cards use NewsImage for the full failure chain. */
 export function issueImage(issue: NewsIssue) {
-  const words =
-    `${issue.title} ${issue.keywords.join(" ")} ${issue.category}`.toLowerCase();
-  const image = /nvidia|gpu|반도체|cuda/.test(words)
-    ? "chip"
-    : /openai|gpt|chatgpt/.test(words)
-      ? "openai"
-      : /apple|애플/.test(words)
-        ? "apple"
-        : /agent|에이전트/.test(words)
-          ? "agent"
-          : /vision|multimodal|멀티모달|이미지|영상/.test(words)
-            ? "multimodal"
-            : /보안|보호|security|network/.test(words)
-              ? "network"
-              : /서버|클라우드|infrastructure|data center/.test(words)
-                ? "server"
-                : "earth";
-  return assetPath(`/images/${image}.jpg`);
+  const source = issue.sources[0];
+  const image = resolveNewsImage({ id: source?.id || issue.id, url: source?.url, title: source?.display?.titleKo || issue.title, category: issue.category, publishedAt: issue.updatedAt, image: source?.image || issue.image });
+  return image.src?.startsWith("/") ? assetPath(image.src) : image.src;
 }
 
 export function formatNewsDate(value: string) {
@@ -227,7 +214,7 @@ export function filterIssues(
         issue.eventType,
         ...tags,
         ...Object.values(issue.event),
-        ...issue.sources.map((source) => `${source.title} ${source.source}`),
+        ...issue.sources.map((source) => `${source.display?.titleKo || ""} ${source.title} ${source.source}`),
       ]
         .join(" ")
         .toLocaleLowerCase("ko");

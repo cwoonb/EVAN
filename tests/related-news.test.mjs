@@ -63,6 +63,44 @@ test("detail links preserve both issue and exact article with safe encoding", ()
   );
 });
 
+test("related article links preserve list conditions through consecutive detail views", () => {
+  const first = issue("new event");
+  const article = source("article&two");
+  const originalArticleUrl = article.url;
+  const listHref = "/news?date=2026-10-20&grade=4&q=OpenAI+%26+agents&keyword=GPT-5.2&sort=importance";
+  const firstHref = articleHref(first, article, listHref);
+  const firstParams = new URLSearchParams(firstHref.split("?")[1]);
+  for (const [name, value] of new URLSearchParams(listHref.split("?")[1])) {
+    assert.equal(firstParams.get(name), value, name);
+  }
+  assert.equal(firstParams.get("issue"), "new event");
+  assert.equal(firstParams.get("article"), "article&two");
+  const next = issue("next event");
+  const nextArticle = source("next article");
+  const nextParams = new URLSearchParams(articleHref(next, nextArticle, firstHref).split("?")[1]);
+  for (const [name, value] of new URLSearchParams(listHref.split("?")[1])) {
+    assert.equal(nextParams.get(name), value, name);
+  }
+  assert.deepEqual(nextParams.getAll("issue"), ["next event"]);
+  assert.deepEqual(nextParams.getAll("article"), ["next article"]);
+  assert.equal(article.url, originalArticleUrl);
+});
+
+test("related navigation retains legacy minimum importance but excludes unrelated parameters", () => {
+  const item = issue("event");
+  const article = source("article");
+  const href = articleHref(item, article, "/news?importance=4&date=2026-10-20&issue=old&article=old&token=private&redirect=https%3A%2F%2Fexample.org#heading");
+  const params = new URLSearchParams(href.split("?")[1]);
+  assert.equal(params.get("importance"), "4");
+  assert.equal(params.get("date"), "2026-10-20");
+  assert.equal(params.get("issue"), item.id);
+  assert.equal(params.get("article"), article.id);
+  assert.equal(params.has("token"), false);
+  assert.equal(params.has("redirect"), false);
+  assert.equal(href.includes("#"), false);
+  assert.ok(href.startsWith("/news?"));
+});
+
 test("only verified cluster members are same event and never duplicate related", () => {
   const item = issue("event", ["OpenAI", "inference", "reasoning"], {
     sources: [source("a"), source("b")],
