@@ -14,7 +14,7 @@
 .member-intro, .member-help, .member-notice { color: #bbcada; font-size: 13px; line-height: 1.7; margin-bottom: 18px; }
 .member-form { display: grid; gap: 16px; }
 .member-form label { display: grid; gap: 7px; color: #f2f6ff; font-size: 14px; }
-.member-form input:not([type="checkbox"]) { min-width: 0; width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #52718c; border-radius: 8px; background: #14243a; color: #f2f6ff; font: inherit; color-scheme: dark; }
+.member-form input:not([type="checkbox"]) { min-width: 0; width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #52718c; border-radius: 8px; background: #14243a; color: #f2f6ff; font: inherit; font-size: 16px; color-scheme: dark; }
 .member-form input::placeholder { color: #9fb2c8; }
 .member-form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .member-form-pair label { min-width: 0; }
