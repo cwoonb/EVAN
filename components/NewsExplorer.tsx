@@ -22,7 +22,7 @@ import NewsImage from "@/components/NewsImage";
 import NewsArticleDetail from "@/components/NewsArticleDetail";
 import { findArticle } from "@/lib/related-news";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 24;
 type SortOrder = "latest" | "importance";
 type InitialFilters = {
   query: string;
@@ -410,46 +410,39 @@ function ExplorerContent({
             )}
           </div>
         ) : (
-          <div className="news-explorer-grid">
-            {visible.map((issue) => (
-              <Link
-                href={explorerHref(issue.sources[0]?.id || issue.id)}
-                key={issue.id}
-                className={`news-explorer-card importance-level-${issue.importance}`}
-              >
-                <div className="news-explorer-card-image">
-                  <NewsImage
-                    news={{ id: issue.sources[0]?.id || issue.id, url: issue.sources[0]?.url, title: issue.title, category: issue.category, publishedAt: issue.updatedAt, image: issue.sources[0]?.image || issue.image }}
-                    sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
-                  />
-                  <span
-                    className={`explorer-importance importance-level-${issue.importance}`}
-                  >
-                    중요도 {importanceLabel(issue.importance)}
-                  </span>
-                  <span className="news-explorer-card-arrow">
-                    <ArrowUpRight size={19} aria-hidden="true" />
-                  </span>
-                </div>
-                <div className="news-explorer-card-body">
-                  <div className="news-explorer-card-meta">
-                    <span>{issue.category}</span>
-                    <span>기사 {issue.sources.length}개</span>
-                  </div>
-                  <h3>{issue.sources[0]?.display?.titleKo || issue.title}</h3>
-                  {issue.summary.trim() !== issue.title.trim() && <p>{issue.summary}</p>}
-                  <div className="news-explorer-card-keywords">
-                    {issue.keywords.slice(0, 3).map((entry) => (
-                      <span key={entry}># {entry}</span>
-                    ))}
-                  </div>
-                  <time dateTime={issue.updatedAt}>
-                    {formatNewsDate(issue.updatedAt)}
-                  </time>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <ol className="news-explorer-list" role="list" aria-label="뉴스 검색 결과">
+            {visible.map((issue) => {
+              const source = issue.sources[0];
+              const title = source?.display?.titleKo || issue.title || source?.title;
+              const publishedAt = source?.publishedAt || issue.updatedAt;
+              return (
+                <li key={issue.id}>
+                  <Link href={explorerHref(source?.id || issue.id)} className="news-explorer-row">
+                    <NewsImage
+                      news={{ id: source?.id || issue.id, url: source?.url, title: issue.title, category: issue.category, publishedAt, image: source?.image || issue.image }}
+                      className="news-explorer-row-image"
+                      sizes="(max-width: 700px) 76px, 112px"
+                    />
+                    <div className="news-explorer-row-copy">
+                      <h3 title={title}>{title}</h3>
+                      {issue.keywords.length > 0 && (
+                        <p className="news-explorer-row-keywords" title={issue.keywords.slice(0, 3).join(" · ")}>
+                          {issue.keywords.slice(0, 3).map((entry) => <span key={entry}>{entry}</span>)}
+                        </p>
+                      )}
+                      <div className="news-explorer-row-meta">
+                        <span className="news-explorer-row-source">{source?.source || "출처 미상"}</span>
+                        <time dateTime={publishedAt}>{formatNewsDate(publishedAt)}</time>
+                        <span className={`explorer-importance importance-level-${issue.importance}`}>{importanceLabel(issue.importance)}</span>
+                        {issue.sources.length > 1 && <span>원문 {issue.sources.length}개</span>}
+                      </div>
+                    </div>
+                    <ArrowUpRight className="news-explorer-row-arrow" size={19} aria-hidden="true" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
         )}
         {totalPages > 1 && (
           <nav
