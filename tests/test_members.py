@@ -217,6 +217,19 @@ class MemberApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 401)
         self.assertEqual(self.client.post("/v1/auth/session", json={"code": "legacy"}).status_code, 503)
 
+    def test_six_character_signup_and_existing_long_password_login(self):
+        short = signup("six_reader", password="Az!7k2")
+        response = self.client.post("/v1/members/signup", json=short, headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        account_id = response.json()["user"]["id"]
+        login = self.client.post("/v1/members/login", json={"username": "six_reader", "password": "Az!7k2"}, headers=self.headers)
+        self.assertEqual(login.status_code, 200, login.text)
+        self.assertEqual(login.json()["user"]["id"], account_id)
+        too_short = self.client.post("/v1/members/signup", json=signup("short_reader", password="Az!7k"), headers=self.headers)
+        self.assertEqual(too_short.status_code, 400)
+        previous = self.client.post("/v1/members/login", json={"username": "reader_one", "password": PASSWORD}, headers=self.headers)
+        self.assertEqual(previous.status_code, 200, previous.text)
+
     def test_rejects_origin_extra_fields_and_unknown_article(self):
         self.assertEqual(self.client.post("/v1/members/login", json={"username": "reader_one", "password": PASSWORD}, headers={"Origin": "https://evil.example"}).status_code, 403)
         self.assertEqual(self.client.post("/v1/members/privacy", json={"historyConsent": True, "userId": "other"}, headers=self.auth).status_code, 400)

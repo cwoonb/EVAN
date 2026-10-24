@@ -14,9 +14,9 @@ MEMBER_AUTH_DB=/absolute/private/path/server/.state/members.sqlite3
 
 회원 DB는 SQLite이며 디렉터리 0700, DB 0600, 비밀번호 scrypt(N=2^17, r=8, p=1)와 계정별 무작위 salt를 사용합니다. 세션은 8시간 유효한 무작위 bearer 토큰이고 DB에는 토큰의 SHA-256만 보관합니다. 로그아웃은 서버 세션도 폐기합니다. 브라우저는 탭의 sessionStorage에 토큰·만료 시각·API 원점만 저장하고 이름·생년월일은 메모리에만 보관합니다. 프로필과 인증 응답은 캐시하지 않습니다. HTTPS 주소가 바뀌면 다시 로그인해야 하지만 계정과 사용량은 유지됩니다.
 
-아이디는 영문·숫자·밑줄 4–24자이며 대소문자를 구분하지 않습니다. 비밀번호는 15–128자입니다. 임시 가입은 만 14세 이상으로 제한합니다. 이메일·휴대폰 확인과 자동 비밀번호 복구는 제공하지 않습니다. 입력한 이름·생년월일은 본인 확인을 거친 정보가 아니며 공개 댓글에는 아이디만 표시합니다.
+아이디는 영문·숫자·밑줄 4–24자이며 대소문자를 구분하지 않습니다. 비밀번호는 사용자 요청에 따라 6–128자로 받습니다. 기존 계정의 긴 비밀번호는 그대로 로그인할 수 있습니다. 임시 가입은 만 14세 이상으로 제한합니다. 이메일·휴대폰 확인과 자동 비밀번호 복구는 제공하지 않습니다. 입력한 이름·생년월일은 본인 확인을 거친 정보가 아니며 공개 댓글에는 아이디만 표시합니다.
 
-비밀번호 정책 참고: [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [NIST SP 800-63B](https://pages.nist.gov/800-63-4/sp800-63b.html).
+비밀번호 해시 저장 방식 참고: [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
 
 ## 개인정보와 열람 기록
 

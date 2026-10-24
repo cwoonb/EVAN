@@ -26,7 +26,7 @@ SEOUL = ZoneInfo("Asia/Seoul")
 USERNAME = re.compile(r"[A-Za-z0-9_]{4,24}\Z")
 ARTICLE_ID = re.compile(r"article_[a-f0-9]{20}\Z")
 PRIVACY_VERSION = "2026-10-24"
-PASSWORD_MINIMUM = 15
+PASSWORD_MINIMUM = 6
 SCRYPT_N = 1 << 17
 
 
@@ -184,7 +184,7 @@ class MemberStore:
         if not isinstance(username, str) or not USERNAME.fullmatch(username):
             raise MemberError("아이디는 영문·숫자·밑줄 4~24자로 입력해주세요.")
         if not isinstance(password, str) or not PASSWORD_MINIMUM <= len(password) <= 128 or len(password.encode("utf-8")) > 512:
-            raise MemberError("비밀번호는 15~128자로 입력해주세요.")
+            raise MemberError("비밀번호는 6~128자로 입력해주세요.")
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 50 or any(unicodedata.category(ch).startswith("C") for ch in name):
             raise MemberError("이름은 1~50자로 입력해주세요.")
         if payload["privacyAccepted"] is not True or not isinstance(payload["historyConsent"], bool):
