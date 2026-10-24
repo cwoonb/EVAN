@@ -39,6 +39,7 @@ ENV_KEYS = {
     "AI_CODE_AUTH_FILE", "SUPABASE_URL", "NEWS_CSV_PATH", "ALLOWED_ORIGINS",
     "VLLM_BASE_URL", "QWEN_MODEL", "VLLM_API_KEY", "RATE_LIMIT_DB",
     "CHAT_REQUESTS_PER_MINUTE", "CHAT_REQUESTS_PER_DAY",
+    "MEMBER_AUTH_DB",
 }
 TUNNEL_ORIGIN = re.compile(r"https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.trycloudflare\.com(?![A-Za-z0-9.-])")
 
@@ -79,7 +80,7 @@ def load_environment(path: Path) -> dict[str, str]:
         if len(pieces) > 1:
             raise ServiceError("Quote configuration values that contain spaces.")
         values[name] = pieces[0] if pieces else ""
-    if not values.get("NEWS_CSV_PATH") or not (values.get("AI_CODE_AUTH_FILE") or values.get("SUPABASE_URL")):
+    if not values.get("NEWS_CSV_PATH") or not (values.get("MEMBER_AUTH_DB") or values.get("AI_CODE_AUTH_FILE") or values.get("SUPABASE_URL")):
         raise ServiceError("Configure the private CSV and an authentication method before starting.")
     try:
         with Path(values["NEWS_CSV_PATH"]).expanduser().open("rb") as handle:

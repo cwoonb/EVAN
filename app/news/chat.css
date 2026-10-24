@@ -443,3 +443,8 @@
     padding: 18px 15px;
   }
 }
+.chat-member-prompt { padding: 22px; border: 1px solid #344963; border-radius: 12px; background: #14243a; color: #f2f6ff; }
+.chat-member-prompt strong { font-size: 17px; }
+.chat-member-prompt p { margin: 10px 0 16px; color: #bbcada; font-size: 14px; line-height: 1.65; }
+.chat-member-prompt button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid #70b8ff; border-radius: 8px; background: #184d83; color: #f2f6ff; font-size: 14px; cursor: pointer; }
+.chat-daily-limit { margin: 14px 0; padding: 15px; border: 1px solid #70b8ff; border-radius: 8px; color: #f2f6ff; background: #14243a; font-size: 14px; line-height: 1.65; }

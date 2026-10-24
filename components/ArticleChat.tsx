@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import {
   ArrowUpRight,
-  KeyRound,
+  LogIn,
   LoaderCircle,
-  LogOut,
+  UserRound,
   PanelRightOpen,
   RotateCcw,
   Send,
   Square,
 } from "lucide-react";
-import { CommunityAuthPanel } from "@/components/ArticleComments";
+import { requestMemberLogin } from "@/lib/member-session";
 import { useAiAccess } from "@/lib/ai-access";
 import {
   aiApiOrigin,
@@ -68,15 +68,13 @@ export function AssistantConversation({
 }) {
   const access = useAiAccess();
   const conversation = useAiConversation(access.owner, context);
-  const [code, setCode] = useState("");
-  const [signingIn, setSigningIn] = useState(false);
   const id = useId();
   const end = useRef<HTMLDivElement>(null);
   const seeded = useRef("");
   const submittedSeed = useRef("");
   const origin = aiApiOrigin();
   const canAsk =
-    !!origin && access.configured && !!access.accessToken && !access.loading;
+    !!origin && access.configured && !!access.accessToken && !access.loading && access.quota?.remaining !== 0;
   const { messages, busy, input, pendingQuestion, error } = conversation;
 
   useEffect(() => {
@@ -117,17 +115,6 @@ export function AssistantConversation({
     conversation,
     onSeedConsumed,
   ]);
-
-  async function login(event: React.FormEvent) {
-    event.preventDefault();
-    if (!code.trim() || signingIn) return;
-    setSigningIn(true);
-    try {
-      if (await access.loginWithCode(code.trim())) setCode("");
-    } finally {
-      setSigningIn(false);
-    }
-  }
 
   const heading = (
     <div className="article-chat-heading">
@@ -215,53 +202,14 @@ export function AssistantConversation({
     return (
       <section className="article-chat" aria-label="EVAN AI 대화">
         {heading}
-        {access.mode === "code" ? (
-          <form
-            className="chat-access-form"
-            onSubmit={(event) => void login(event)}
-          >
-            <KeyRound size={22} aria-hidden="true" />
-            <label htmlFor={`${id}-access-code`}>
-              접속 코드로 EVAN AI 시작하기
-            </label>
-            <p>
-              공유받은 접속 코드를 입력해주세요. 접속 코드는 저장하지 않습니다.
-              인증은 이 탭에서 최대 8시간 유지됩니다.
-            </p>
-            {seedQuestion && (
-              <p className="chat-queued-question">
-                연결 후 질문: {seedQuestion}
-              </p>
-            )}
-            <div>
-              <input
-                id={`${id}-access-code`}
-                type="password"
-                autoComplete="off"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                maxLength={256}
-                required
-                disabled={signingIn}
-                placeholder="접속 코드"
-              />
-              <button type="submit" disabled={signingIn || !code.trim()}>
-                {signingIn ? "확인 중…" : "연결"}
-              </button>
-            </div>
-            {access.error && (
-              <p className="chat-access-error" role="alert">
-                {access.error}
-              </p>
-            )}
-          </form>
-        ) : access.mode === "supabase" ? (
-          <CommunityAuthPanel />
-        ) : (
-          <p className="chat-connection" role="status">
-            AI 접속 설정을 확인하고 있습니다.
-          </p>
-        )}
+        <div className="chat-member-prompt">
+          <strong>로그인하고 EVAN AI에 질문하세요</strong>
+          <p>계정마다 하루 10회 질문할 수 있습니다. 한국 시간 자정에 초기화됩니다.</p>
+          {seedQuestion && <p className="chat-queued-question">입력한 질문: {seedQuestion}</p>}
+          <button type="button" onClick={() => requestMemberLogin("먼저 로그인을 해주세요")}>
+            <LogIn size={17} aria-hidden="true" /> 로그인하고 질문하기
+          </button>
+        </div>
       </section>
     );
 
@@ -273,16 +221,17 @@ export function AssistantConversation({
       {heading}
       <div className="chat-access-status">
         <span>
-          {access.mode === "code" ? "접속 코드로 연결됨" : "로그인으로 연결됨"}
+          {access.user?.username} · 오늘 남은 질문 {access.quota?.remaining ?? "확인 중"} / 10회
         </span>
         <button
           type="button"
-          onClick={() => void access.signOut()}
+          onClick={() => requestMemberLogin("내 계정")}
           disabled={access.loading}
         >
-          <LogOut size={14} aria-hidden="true" /> 접속 종료
+          <UserRound size={14} aria-hidden="true" /> 내 계정
         </button>
       </div>
+      {access.quota?.remaining === 0 && <p className="chat-daily-limit" role="status">오늘의 AI 질문 10회를 모두 사용했습니다. 한국 시간 자정 이후 다시 질문할 수 있습니다. 댓글과 뉴스 탐색은 계속 이용할 수 있습니다.</p>}
       <label className="chat-scope-label" htmlFor={`${id}-scope`}>
         근거 검색 범위
       </label>

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 import json
 import os
@@ -16,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from jwt import PyJWKClient
 from server.code_auth import CodeAuth
+from server.member_store import MemberStore, MemberError
+from server.member_api import create_member_router
 
 from server.news_gateway import (
     MAX_BODY_BYTES, NewsStore, RateLimiter, RequestError,
@@ -42,10 +45,11 @@ class Settings:
     per_minute: int = 6
     per_day: int = 100
     code_auth_path: Path | None = None
+    member_db_path: Path | None = None
 
     @property
     def configured(self) -> bool:
-        return bool((self.supabase_url or self.code_auth_path) and self.csv_path)
+        return bool((self.supabase_url or self.code_auth_path or self.member_db_path) and self.csv_path)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -63,12 +67,14 @@ class Settings:
             raise ValueError("VLLM_BASE_URL is invalid")
         csv = os.getenv("NEWS_CSV_PATH", "")
         code_path = os.getenv("AI_CODE_AUTH_FILE", "")
+        member_path = os.getenv("MEMBER_AUTH_DB", "")
         return cls(auth_url, Path(csv).expanduser().resolve() if csv else None, origins,
                    model_url, os.getenv("QWEN_MODEL", "qwen3.8-27b"), os.getenv("VLLM_API_KEY", ""),
                    Path(os.getenv("RATE_LIMIT_DB", "server/.state/rate-limits.sqlite3")).expanduser().resolve(),
                    integer_setting("CHAT_REQUESTS_PER_MINUTE", 6, 60),
                    integer_setting("CHAT_REQUESTS_PER_DAY", 100, 1_000),
-                   Path(code_path).expanduser().resolve() if code_path else None)
+                   Path(code_path).expanduser().resolve() if code_path else None,
+                   Path(member_path).expanduser().resolve() if member_path else None)
 
 
 class SupabaseVerifier:
@@ -152,18 +158,50 @@ async def ask_model(settings: Settings, request: dict, evidence: list) -> dict:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="EVAN private news API", docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(_app):
+        async def prune_members():
+            while True:
+                if members:
+                    await asyncio.to_thread(members.prune)
+                await asyncio.sleep(3600)
+        cleanup = asyncio.create_task(prune_members()) if members else None
+        try:
+            yield
+        finally:
+            if cleanup:
+                cleanup.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup
+    app = FastAPI(title="EVAN private news API", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.allowed_origins),
                        allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"],
                        expose_headers=["Retry-After"], max_age=600)
     store = NewsStore(settings.csv_path) if settings.csv_path else None
-    code_auth = CodeAuth.load(settings.code_auth_path) if settings.code_auth_path else None
-    verifier = code_auth or (SupabaseVerifier(settings.supabase_url) if settings.supabase_url else None)
+    members = MemberStore(settings.member_db_path) if settings.member_db_path else None
+    # Member mode deliberately rejects legacy shared-code and Supabase sessions.
+    code_auth = CodeAuth.load(settings.code_auth_path) if settings.code_auth_path and members is None else None
+    verifier = members or code_auth or (SupabaseVerifier(settings.supabase_url) if settings.supabase_url else None)
     limiter = RateLimiter(settings.state_path, settings.per_minute, settings.per_day) if settings.configured else None
     login_limiter = RateLimiter(settings.state_path.with_name("login-limits.sqlite3"), 10, 100) if code_auth else None
     global_login_limiter = RateLimiter(settings.state_path.with_name("login-global.sqlite3"), 60, 1000) if code_auth else None
     slots = asyncio.Semaphore(2)
+    if members:
+        def article_exists(article_id: str) -> bool:
+            if store is None:
+                return False
+            return article_id in store.snapshot()[0]
+        app.include_router(create_member_router(members, article_exists, settings.allowed_origins))
+
+    def member_failure(error: MemberError):
+        body = {"detail": str(error)}
+        if error.code:
+            body["code"] = error.code
+        if error.quota is not None:
+            body["quota"] = error.quota
+        return JSONResponse(body, status_code=error.status,
+                            headers={"Retry-After": str(error.retry_after)} if error.retry_after else None)
 
     @app.middleware("http")
     async def private_response_headers(request: Request, call_next):
@@ -180,7 +218,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def auth_config():
         if not settings.configured:
             return JSONResponse({"configured": False}, status_code=503)
-        return {"configured": True, "mode": "code" if code_auth else "supabase"}
+        return {"configured": True, "mode": "member" if members else "code" if code_auth else "supabase"}
 
     @app.post("/v1/auth/session")
     async def code_session(request: Request):
@@ -225,6 +263,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"detail": "AI 질문은 로그인 후 사용할 수 있습니다."}, status_code=401)
         try:
             user_id = await asyncio.to_thread(verifier.verify, authorization[7:])
+        except MemberError as error:
+            return member_failure(error)
         except RequestError as error:
             return JSONResponse({"detail": str(error)}, status_code=401)
         retry_after = await asyncio.to_thread(limiter.consume, user_id)
@@ -237,18 +277,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (RequestError, ValueError, UnicodeDecodeError, TypeError):
             return JSONResponse({"detail": "질문 형식이나 길이를 확인해주세요."}, status_code=400)
         acquired = False
+        reservation = None
+        completed = False
+
+        async def success(answer: dict) -> dict:
+            nonlocal completed
+            if members and reservation:
+                answer = {**answer, "quota": await asyncio.to_thread(members.finish_question, reservation, True)}
+            completed = True
+            return answer
+
         try:
             await asyncio.wait_for(slots.acquire(), timeout=0.1)
             acquired = True
             corpus, revision = await asyncio.to_thread(store.snapshot)
             evidence = retrieve(corpus, payload)
             applied_scope = resolved_scope(payload)
+            if members:
+                reservation = await asyncio.to_thread(members.reserve_question, user_id)
             if not evidence:
-                return {"answer": "현재 EVAN 뉴스 데이터에서 질문과 관련된 기사를 찾지 못했습니다. 회사·모델·기술 이름을 구체적으로 입력해주세요.", "sources": [], "scope": applied_scope, "revision": revision}
+                return await success({"answer": "현재 EVAN 뉴스 데이터에서 질문과 관련된 기사를 찾지 못했습니다. 회사·모델·기술 이름을 구체적으로 입력해주세요.", "sources": [], "scope": applied_scope, "revision": revision})
             if all(item.kind == "title" for item in evidence):
-                return {"answer": "현재 검색된 기사는 본문을 수집하지 못했고 기존 AI 분석도 없습니다. 제목과 출처만 확인할 수 있어 질문의 구체적인 사실을 검증할 수 없습니다. 아래 원문 출처를 확인해주세요.", "sources": [item.public_source(index + 1) for index, item in enumerate(evidence)], "scope": applied_scope, "revision": revision}
+                return await success({"answer": "현재 검색된 기사는 본문을 수집하지 못했고 기존 AI 분석도 없습니다. 제목과 출처만 확인할 수 있어 질문의 구체적인 사실을 검증할 수 없습니다. 아래 원문 출처를 확인해주세요.", "sources": [item.public_source(index + 1) for index, item in enumerate(evidence)], "scope": applied_scope, "revision": revision})
             answer = await ask_model(settings, payload, evidence)
-            return {**answer, "scope": applied_scope, "revision": revision}
+            return await success({**answer, "scope": applied_scope, "revision": revision})
+        except MemberError as error:
+            return member_failure(error)
         except asyncio.TimeoutError:
             return JSONResponse({"detail": "AI가 다른 질문에 답하고 있습니다. 잠시 후 다시 시도해주세요."}, status_code=503, headers={"Retry-After": "10"})
         except RequestError as error:
@@ -258,6 +312,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except RuntimeError as error:
             return JSONResponse({"detail": str(error)}, status_code=502)
         finally:
+            if members and reservation and not completed:
+                with suppress(MemberError):
+                    await asyncio.to_thread(members.finish_question, reservation, False)
             if acquired:
                 slots.release()
     return app

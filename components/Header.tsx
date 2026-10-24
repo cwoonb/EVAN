@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import SearchDialog from "./SearchDialog";
+import { requestMemberLogin, useMemberSession } from "@/lib/member-session";
 
 const navigation = [
   { href: "/", label: "홈" },
@@ -15,6 +16,7 @@ const navigation = [
 ];
 
 export function Header() {
+  const member = useMemberSession();
   const pathname = usePathname();
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -81,9 +83,7 @@ export function Header() {
             <span className="header-search-placeholder">검색하기...</span>
             <kbd>⌘ K</kbd>
           </button>
-          <Link className="header-profile" href="/about" aria-label="EVAN 소개">
-            E
-          </Link>
+          <button type="button" className="header-member" onClick={() => { setMenuOpen(false); requestMemberLogin(member.user ? "내 계정" : "로그인"); }} aria-label={member.user ? `${member.user.username} 내 계정` : "로그인"}><span>{member.user?.username || "로그인"}</span></button>
           <button
             className="header-menu-button"
             type="button"

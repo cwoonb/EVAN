@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, ChevronDown, FileText, Home, MessageCircle, Search } from "lucide-react";
 import ArticleChat from "@/components/ArticleChat";
@@ -8,6 +8,7 @@ import ArticleComments from "@/components/ArticleComments";
 import { articleHref, relatedNews, type ArticleReference } from "@/lib/related-news";
 import { articlePresentation, articleTitle, compactNewsDate, repeatsText, sourceIntroduction } from "@/lib/news-presentation";
 import type { NewsIssue } from "@/types/news";
+import { memberRequest, useMemberSession } from "@/lib/member-session";
 
 type DetailTab = "ai" | "related" | "comments";
 const TABS: { id: DetailTab; label: string }[] = [
@@ -29,6 +30,13 @@ export default function NewsArticleDetail({ current, issues, closeHref }: {
   current: ArticleReference; issues: NewsIssue[]; closeHref: string;
 }) {
   const { issue, source } = current;
+  const member = useMemberSession();
+  useEffect(() => {
+    if (!member.accessToken || !member.user?.historyConsent) return;
+    const controller = new AbortController();
+    void memberRequest("/v1/members/history", { method: "POST", body: JSON.stringify({ articleId: source.id }), signal: controller.signal }).catch(() => { /* Reading remains available if optional history cannot be recorded. */ });
+    return () => controller.abort();
+  }, [source.id, member.accessToken, member.user?.historyConsent]);
   const [tab, setTab] = useState<DetailTab>("ai");
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const panelId = useId();

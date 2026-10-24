@@ -253,14 +253,16 @@ async function askConversation(
       credentials: "omit",
     });
     if (!response.ok) {
-      if (response.status === 401)
-        throw new Error(
-          "접속이 만료됐습니다. 다시 로그인하거나 접속 코드를 입력해주세요.",
-        );
-      if (response.status === 429)
-        throw new Error(
-          "질문 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요.",
-        );
+      if (response.status === 401) {
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("evan:member-expired"));
+        throw new Error("로그인이 만료됐습니다. 다시 로그인해주세요.");
+      }
+      if (response.status === 429) {
+        const failure = await response.json().catch(() => null);
+        throw new Error(failure?.code === "DAILY_QUOTA_EXCEEDED"
+          ? "오늘의 AI 질문 10회를 모두 사용했습니다. 한국 시간 자정 이후 다시 질문해주세요."
+          : "질문이 너무 빠릅니다. 잠시 후 다시 시도해주세요.");
+      }
       if (response.status === 404)
         throw new Error(
           "기사가 갱신됐습니다. 최신 뉴스를 불러온 뒤 다시 질문해주세요.",
@@ -303,6 +305,7 @@ async function askConversation(
       requests.delete(key);
       update(key, context, { busy: false });
     }
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("evan:refresh-member"));
   }
 }
 

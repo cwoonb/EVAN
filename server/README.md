@@ -12,13 +12,15 @@ server/.venv/bin/pip install -r server/requirements.txt
 cp server/.env.example server/.env
 ```
 
-Set either `AI_CODE_AUTH_FILE` or `SUPABASE_URL`, the existing CSV path, allowed website origins, and the model settings. The managed runner loads the private environment file without executing shell expressions. See [managed Mac service](../docs/ai-service.md) for startup, temporary HTTPS, and endpoint synchronization.
+Set `MEMBER_AUTH_DB` for member accounts (or a legacy `AI_CODE_AUTH_FILE` / `SUPABASE_URL`), the existing CSV path, allowed website origins, and the model settings. The managed runner loads the private environment file without executing shell expressions. See [managed Mac service](../docs/ai-service.md) for startup, temporary HTTPS, and endpoint synchronization.
 
 For manual operation, supply the reviewed settings as process environment variables and run `server/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8787 --no-access-log`.
 
 The verified existing analyzer configuration uses `http://127.0.0.1:8000/v1` and `qwen3.8-27b`. This API never starts or reconfigures the existing model. `GET /healthz` returns `configured` when required settings are present (this is not a model connectivity check), or `setup_required` with HTTP 503 when required settings are absent. No browser calls the local vLLM address.
 
 ## Authentication and public hosting
+
+Member mode is selected by `MEMBER_AUTH_DB`, a private SQLite path. It takes precedence over the legacy modes below and uses ID/password signup, private profiles, shared member comments, optional consented reading history, and an atomic ten-question quota per Korean calendar day. Legacy code sessions cannot use member-mode chat. See [member operations and privacy](../docs/member-accounts.md) for the full API, retention, password policy, and limitations. No Supabase project is required in this mode.
 
 Personal-code mode uses `AI_CODE_AUTH_FILE`, a mode-0600 local credentials file. `CodeAuth.provision(path)` creates a random code once and returns it only to the local setup caller. The server stores its scrypt hash and a separate signing key; the plaintext code belongs in a private user file outside the repository. `POST /v1/auth/session` exchanges the code for an eight-hour signed bearer session. The browser never stores the code; it keeps the session token in this tab's sessionStorage. Per-client and global login quotas limit attempts; raw IP addresses are hashed before quota storage. All code sessions share one owner and chat quota, so creating sessions does not reset limits. Replacing the credential file revokes existing sessions after restarting the gateway. `GET /v1/auth/config` publishes only the configured authentication mode.
 

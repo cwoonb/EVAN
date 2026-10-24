@@ -12,6 +12,7 @@ import {
 import { useNewsFeed } from "@/lib/news-feed";
 import { findArticle } from "@/lib/related-news";
 import "@/app/assistant.css";
+import { MEMBER_LOGIN_EVENT, requestMemberLogin, useMemberSession } from "@/lib/member-session";
 
 const allNews: AssistantContext = {
   articleId: null,
@@ -32,6 +33,7 @@ function validContext(value: unknown): value is AssistantContext {
 }
 
 export default function FloatingAssistant() {
+  const member = useMemberSession();
   const pathname = usePathname();
   const params = useSearchParams();
   const { feed } = useNewsFeed();
@@ -96,11 +98,18 @@ export default function FloatingAssistant() {
         document.activeElement instanceof HTMLElement
           ? document.activeElement
           : launcher.current;
+      if (!member.accessToken) { requestMemberLogin(); return; }
       setOpen(true);
     }
     window.addEventListener(ASSISTANT_OPEN_EVENT, handleOpen);
     return () => window.removeEventListener(ASSISTANT_OPEN_EVENT, handleOpen);
-  }, [routeKey]);
+  }, [routeKey, member.accessToken]);
+
+  useEffect(() => {
+    function closeForLogin() { dialog.current?.close(); setOpen(false); }
+    window.addEventListener(MEMBER_LOGIN_EVENT, closeForLogin);
+    return () => window.removeEventListener(MEMBER_LOGIN_EVENT, closeForLogin);
+  }, []);
 
   useEffect(() => {
     const panel = dialog.current;
@@ -134,6 +143,7 @@ export default function FloatingAssistant() {
         aria-expanded={open}
         aria-controls={`${id}-panel`}
         onClick={() => {
+          if (!member.accessToken) { requestMemberLogin(); return; }
           returnFocus.current = launcher.current;
           setOpen(true);
         }}

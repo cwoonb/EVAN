@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import Header from "@/components/Header";
 import { Suspense } from "react";
 import FloatingAssistant from "@/components/FloatingAssistant";
+import AccountDialog from "@/components/AccountDialog";
 import "./globals.css";
 import "./header.css";
 import "./secondary.css";
@@ -33,6 +34,7 @@ export default function RootLayout({
           본문으로 건너뛰기
         </a>
         <Header />
+        <AccountDialog />
         {children}
         <Suspense fallback={null}><FloatingAssistant /></Suspense>
         <footer className="site-footer">
