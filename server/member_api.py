@@ -73,15 +73,47 @@ def create_member_router(store: MemberStore, article_exists, allowed_origins=())
     @route("/v1/members/signup", public=True)
     async def signup(request, _):
         await asyncio.to_thread(store.limit_auth, address(request), "signup")
-        body = await payload(request, ("username", "password", "name", "birthDate", "privacyAccepted", "historyConsent"))
+        body = await payload(request, ("username", "password", "name", "birthDate", "privacyAccepted", "historyConsent"), ("rememberDevice", "clientId"))
         return await asyncio.to_thread(store.signup, body)
 
     @route("/v1/members/login", public=True)
     async def login(request, _):
-        body = await payload(request, ("username", "password"))
+        body = await payload(request, ("username", "password"), ("rememberDevice", "clientId"))
         username = body["username"] if isinstance(body["username"], str) else ""
         await asyncio.to_thread(store.limit_auth, address(request), "login", username[:24])
-        return await asyncio.to_thread(store.login, body["username"], body["password"])
+        if "clientId" in body and body.get("rememberDevice") is not True:
+            raise MemberError("자동 로그인 설정을 확인해주세요.")
+        return await asyncio.to_thread(store.login, body["username"], body["password"], body.get("rememberDevice", False), body.get("clientId"))
+
+    @route("/v1/members/remember", public=True)
+    async def remember(request, _):
+        await asyncio.to_thread(store.limit_auth, address(request), "remember")
+        body = await payload(request, ("rememberToken", "clientId"))
+        return await asyncio.to_thread(store.remember, body["rememberToken"], body["clientId"])
+
+    @route("/v1/members/forget", public=True)
+    async def forget(request, _):
+        await asyncio.to_thread(store.limit_auth, address(request), "remember")
+        body = await payload(request, ("rememberToken", "clientId"))
+        await asyncio.to_thread(store.forget, body["rememberToken"], body["clientId"])
+
+    @route("/v1/members/recovery-code")
+    async def recovery_code(request, user_id):
+        await asyncio.to_thread(store.limit_auth, address(request), "login", user_id)
+        body = await payload(request, ("password",))
+        return await asyncio.to_thread(store.recovery_code, user_id, body["password"])
+
+    @route("/v1/members/recover-username", public=True)
+    async def recover_username(request, _):
+        await asyncio.to_thread(store.limit_auth, address(request), "recovery")
+        body = await payload(request, ("recoveryCode",))
+        return await asyncio.to_thread(store.recover_username, body["recoveryCode"])
+
+    @route("/v1/members/reset-password", public=True)
+    async def reset_password(request, _):
+        await asyncio.to_thread(store.limit_auth, address(request), "recovery")
+        body = await payload(request, ("username", "recoveryCode", "newPassword"))
+        return await asyncio.to_thread(store.reset_password, body["username"], body["recoveryCode"], body["newPassword"])
 
     @route("/v1/members/me", "GET")
     async def me(request, user_id):

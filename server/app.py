@@ -218,7 +218,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def auth_config():
         if not settings.configured:
             return JSONResponse({"configured": False}, status_code=503)
-        return {"configured": True, "mode": "member" if members else "code" if code_auth else "supabase"}
+        result = {"configured": True, "mode": "member" if members else "code" if code_auth else "supabase"}
+        if members:
+            result["serverId"] = members.server_id
+        return result
 
     @app.post("/v1/auth/session")
     async def code_session(request: Request):

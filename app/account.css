@@ -6,7 +6,7 @@
 .member-dialog h2 { margin-top: 6px; font-size: 25px; }
 .member-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 14px; border: 1px solid #344963; border-radius: 8px; background: #14243a; color: #f2f6ff; cursor: pointer; font: inherit; font-size: 14px; }
 .member-dialog button:disabled { cursor: wait; opacity: .6; }
-.member-dialog button:focus-visible, .member-dialog input:focus-visible, .member-dialog a:focus-visible { outline: 2px solid #70b8ff; outline-offset: 3px; }
+.member-dialog button:focus-visible, .member-dialog input:focus-visible, .member-dialog textarea:focus-visible, .member-dialog a:focus-visible { outline: 2px solid #70b8ff; outline-offset: 3px; }
 .member-login-reason { padding: 14px; margin-bottom: 18px; border: 1px solid #70b8ff; border-radius: 8px; line-height: 1.65; font-size: 16px; }
 .member-login-reason a { display: inline-block; margin-left: 8px; color: #a6d0ff; text-decoration: underline; }
 .member-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
@@ -22,6 +22,25 @@
 .member-consent input { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 2px; accent-color: #70b8ff; }
 .member-form .member-help { margin-bottom: 0; }
 .member-dialog .member-primary { background: #184d83; border-color: #70b8ff; font-weight: 600; }
+.member-remember { min-height: 44px; padding: 12px 0; }
+.member-remember strong, .member-remember span > span { display: block; }
+.member-remember strong { color: #f2f6ff; font-size: 14px; font-weight: 600; }
+.member-remember span > span { margin-top: 3px; }
+.member-recovery-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.member-dialog .member-recovery-links button, .member-dialog .member-back { color: #a6d0ff; background: transparent; }
+.member-back { width: 100%; }
+.member-recovery-help { margin-top: 18px; }
+.member-recovery-result { display: grid; gap: 16px; font-size: 15px; line-height: 1.7; }
+.member-recovery-result label { color: #bbcada; font-size: 14px; }
+.member-recovery-result textarea { width: 100%; min-width: 0; min-height: 104px; padding: 14px; resize: none; border: 1px solid #70b8ff; border-radius: 8px; background: #14243a; color: #f2f6ff; font: 16px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.member-code-warning { padding: 14px; border-left: 3px solid #70b8ff; border-radius: 4px; background: #14243a; color: #f2f6ff; }
+.member-code-owner { color: #bbcada; font-size: 14px; }
+.member-code-owner strong { color: #f2f6ff; overflow-wrap: anywhere; }
+.member-found-username { padding: 18px; border: 1px solid #52718c; border-radius: 8px; background: #14243a; color: #f2f6ff; font-size: 20px; overflow-wrap: anywhere; }
+.member-account-recovery { display: grid; gap: 12px; padding: 18px; border: 1px solid #344963; border-radius: 10px; }
+.member-account-recovery h3 { font-size: 16px; }
+.member-account-recovery .member-help { margin: 0; }
+.member-inline-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .member-error { color: #ffb6b6; font-size: 14px; line-height: 1.65; }
 .member-account { display: grid; gap: 18px; font-size: 14px; line-height: 1.65; }
 .member-quota { padding: 17px; border-radius: 10px; background: #14243a; border: 1px solid #344963; }

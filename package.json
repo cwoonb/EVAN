@@ -15,6 +15,7 @@
     "test:related": "node --test tests/related-news.test.mjs",
     "test:presentation": "node --test tests/news-presentation.test.mjs",
     "test:ai": "node --test tests/ai-conversation.test.mjs",
+    "test:members": "node --test tests/member-session.test.mjs",
     "test:layout": "node --test tests/news-layout.test.mjs",
     "test:images": "node --test tests/news-images.test.mjs",
     "test:briefing": "node --test tests/news-briefing.test.mjs"

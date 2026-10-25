@@ -8,6 +8,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
+import uuid
 from unittest.mock import patch
 
 from server.member_store import MemberStore, MemberError, SCRYPT_N
@@ -262,6 +263,61 @@ class MemberApiTests(unittest.TestCase):
         self.assertEqual(self.client.post(f"/v1/comments/{comment_id}/delete", json={}, headers=self.auth).status_code, 200)
         self.assertEqual(self.client.post("/v1/members/logout", json={}, headers=self.auth).status_code, 200)
         self.assertEqual(self.client.get("/v1/members/me", headers=self.auth).status_code, 401)
+
+    def test_remember_opt_in_and_expired_session_forget_api(self):
+        client_id = str(uuid.uuid4())
+        response = self.client.post("/v1/members/login", json={"username": "reader_one", "password": PASSWORD, "rememberDevice": True, "clientId": client_id}, headers=self.headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()
+        device = {"rememberToken": saved["rememberToken"], "clientId": client_id}
+        restored = self.client.post("/v1/members/remember", json=device, headers=self.headers)
+        self.assertEqual(restored.status_code, 200, restored.text)
+        self.assertEqual(restored.json()["rememberExpiresAt"], saved["rememberExpiresAt"])
+        wrong = self.client.post("/v1/members/remember", json={**device, "clientId": str(uuid.uuid4())}, headers=self.headers)
+        self.assertEqual(wrong.status_code, 401)
+        self.assertEqual(self.client.post("/v1/members/forget", json=device, headers=self.headers).status_code, 200)
+        remembered_auth = {**self.headers, "Authorization": "Bearer " + restored.json()["accessToken"]}
+        self.assertEqual(self.client.get("/v1/members/me", headers=remembered_auth).status_code, 401)
+        self.assertEqual(self.client.post("/v1/members/remember", json=device, headers=self.headers).status_code, 401)
+        self.assertEqual(self.client.get("/v1/members/me", headers=self.auth).status_code, 200)
+
+    def test_recovery_api_requires_secret_and_password_reset_revokes_sessions(self):
+        wrong = self.client.post("/v1/members/recovery-code", json={"password": "wrong"}, headers=self.auth)
+        self.assertEqual(wrong.status_code, 401)
+        provision = self.client.post("/v1/members/recovery-code", json={"password": PASSWORD}, headers=self.auth)
+        self.assertEqual(provision.status_code, 200, provision.text)
+        code = provision.json()["recoveryCode"]
+        found = self.client.post("/v1/members/recover-username", json={"recoveryCode": code}, headers=self.headers)
+        self.assertEqual(found.json(), {"username": "reader_one"})
+        reset = self.client.post("/v1/members/reset-password", json={"username": "reader_one", "recoveryCode": code, "newPassword": "Az!7k2"}, headers=self.headers)
+        self.assertEqual(reset.status_code, 200, reset.text)
+        self.assertNotEqual(reset.json()["recoveryCode"], code)
+        self.assertNotIn("accessToken", reset.json())
+        self.assertEqual(self.client.get("/v1/members/me", headers=self.auth).status_code, 401)
+        reused = self.client.post("/v1/members/reset-password", json={"username": "reader_one", "recoveryCode": code, "newPassword": "Az!7k2"}, headers=self.headers)
+        self.assertEqual(reused.status_code, 400)
+        login = self.client.post("/v1/members/login", json={"username": "reader_one", "password": "Az!7k2"}, headers=self.headers)
+        self.assertEqual(login.status_code, 200, login.text)
+
+    def test_recovery_rejects_name_birth_lookup_and_is_rate_limited(self):
+        self.assertEqual(self.client.post("/v1/members/recover-username", json={"name": "검증 사용자", "birthDate": "1990-05-10"}, headers=self.headers).status_code, 400)
+        self.assertEqual(self.client.post("/v1/members/recovery-code", json={"password": PASSWORD}, headers=self.headers).status_code, 401)
+        for _ in range(4):
+            response = self.client.post("/v1/members/recover-username", json={"recoveryCode": "EVAN-" + "-".join(["00000000"] * 6)}, headers=self.headers)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json()["code"], "RECOVERY_INVALID")
+        response = self.client.post("/v1/members/recover-username", json={"recoveryCode": "EVAN-" + "-".join(["00000000"] * 6)}, headers=self.headers)
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("Retry-After", response.headers)
+
+    def test_remember_and_recovery_reject_extra_fields_and_untrusted_origins(self):
+        for path, value in (("remember", {"rememberToken": "x" * 64, "clientId": str(uuid.uuid4())}), ("recover-username", {"recoveryCode": "x" * 58}), ("reset-password", {"username": "reader_one", "recoveryCode": "x" * 58, "newPassword": "Az!7k2"})):
+            self.assertEqual(self.client.post("/v1/members/" + path, json=value, headers={"Origin": "https://evil.example"}).status_code, 403)
+            self.assertEqual(self.client.post("/v1/members/" + path, json={**value, "userId": "other"}, headers=self.headers).status_code, 400)
+        invalid = self.client.post("/v1/members/login", json={"username": "reader_one", "password": PASSWORD, "rememberDevice": "true", "clientId": str(uuid.uuid4())}, headers=self.headers)
+        self.assertEqual(invalid.status_code, 400)
+        invalid_null = self.client.post("/v1/members/login", json={"username": "reader_one", "password": PASSWORD, "rememberDevice": False, "clientId": None}, headers=self.headers)
+        self.assertEqual(invalid_null.status_code, 400)
 
     def test_daily_quota_is_enforced_by_api_not_browser(self):
         store = MemberStore(self.settings.member_db_path)

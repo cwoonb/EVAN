@@ -28,6 +28,7 @@ ARTICLE_ID = re.compile(r"article_[a-f0-9]{20}\Z")
 PRIVACY_VERSION = "2026-10-24"
 PASSWORD_MINIMUM = 6
 SCRYPT_N = 1 << 17
+RECOVERY_CODE = re.compile(r"EVAN-(?:[A-F0-9]{8}-){5}[A-F0-9]{8}\Z")
 
 
 class MemberError(RequestError):
@@ -44,6 +45,7 @@ def iso_timestamp(value: float) -> str:
 
 class MemberStore:
     SESSION_SECONDS = 8 * 60 * 60
+    REMEMBER_SECONDS = 30 * 86400
     QUESTION_LIMIT = 10
     HISTORY_DAYS = 90
     COMMENT_LIMIT = 50
@@ -71,9 +73,19 @@ class MemberStore:
                     history_consent INTEGER NOT NULL DEFAULT 0,
                     history_consent_at REAL, created_at REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS member_remember (
+                    digest TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+                    client_digest TEXT NOT NULL, created_at REAL NOT NULL, expires_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS member_remember_user ON member_remember(user_id);
+                CREATE TABLE IF NOT EXISTS member_recovery (
+                    user_id TEXT PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+                    digest TEXT NOT NULL UNIQUE, created_at REAL NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS member_sessions (
                     digest TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-                    created_at REAL NOT NULL, expires_at REAL NOT NULL
+                    created_at REAL NOT NULL, expires_at REAL NOT NULL,
+                    remember_digest TEXT REFERENCES member_remember(digest) ON DELETE CASCADE
                 );
                 CREATE INDEX IF NOT EXISTS member_sessions_user ON member_sessions(user_id);
                 CREATE TABLE IF NOT EXISTS member_question_reservations (
@@ -105,8 +117,13 @@ class MemberStore:
                     PRIMARY KEY(comment_id, user_id)
                 );
             """)
+            # Additive migration: existing accounts, sessions, quotas and comments are preserved.
+            if "remember_digest" not in {column[1] for column in db.execute("PRAGMA table_info(member_sessions)")}:
+                db.execute("ALTER TABLE member_sessions ADD COLUMN remember_digest TEXT REFERENCES member_remember(digest) ON DELETE CASCADE")
             db.execute("INSERT OR IGNORE INTO member_meta(key,value) VALUES ('ip_salt',?)", (secrets.token_hex(32),))
+            db.execute("INSERT OR IGNORE INTO member_meta(key,value) VALUES ('server_id',?)", (secrets.token_hex(24),))
             self._ip_salt = bytes.fromhex(db.execute("SELECT value FROM member_meta WHERE key='ip_salt'").fetchone()[0])
+            self.server_id = db.execute("SELECT value FROM member_meta WHERE key='server_id'").fetchone()[0]
         self._dummy_salt = secrets.token_bytes(32)
         self._dummy_hash = self._hash(secrets.token_urlsafe(32), self._dummy_salt)
 
@@ -150,16 +167,20 @@ class MemberStore:
                    "ON CONFLICT(key,bucket) DO UPDATE SET count=count+1", (key, bucket, bucket_start + seconds))
 
     def limit_auth(self, address: str, action: str, username: str = ""):
-        if action not in {"signup", "login"}:
+        if action not in {"signup", "login", "remember", "recovery"}:
             raise ValueError("Invalid authentication action")
         now = self.clock()
         with self._connection(write=True) as db:
             db.execute("DELETE FROM member_limits WHERE expires_at<?", (now - 86400,))
             # HMAC identifiers prevent either raw IPs or attempted usernames appearing in this table.
             ip_key = action + ":ip:" + self.client_key(address)
-            self._limit(db, ip_key, 3 if action == "signup" else 10, 3600 if action == "signup" else 60, now)
-            self._limit(db, ip_key, 20 if action == "signup" else 100, 86400, now)
-            self._limit(db, action + ":global", 30 if action == "signup" else 120, 60, now)
+            count, seconds, daily, global_count = {
+                "signup": (3, 3600, 20, 30), "login": (10, 60, 100, 120),
+                "remember": (30, 60, 300, 240), "recovery": (5, 900, 20, 60),
+            }[action]
+            self._limit(db, ip_key, count, seconds, now)
+            self._limit(db, ip_key, daily, 86400, now)
+            self._limit(db, action + ":global", global_count, 60, now)
             if action == "login" and username:
                 self._limit(db, "login:user:" + self.client_key(username.casefold()), 20, 900, now)
 
@@ -178,8 +199,12 @@ class MemberStore:
         return row
 
     def signup(self, payload: dict) -> dict:
-        if not isinstance(payload, dict) or set(payload) != {"username", "password", "name", "birthDate", "privacyAccepted", "historyConsent"}:
+        required = {"username", "password", "name", "birthDate", "privacyAccepted", "historyConsent"}
+        if not isinstance(payload, dict) or not required <= set(payload) or set(payload) - required - {"rememberDevice", "clientId"}:
             raise MemberError("회원가입 입력 항목을 확인해주세요.")
+        if "clientId" in payload and payload.get("rememberDevice") is not True:
+            raise MemberError("자동 로그인 설정을 확인해주세요.")
+        remember, client_id = self._remember_options(payload.get("rememberDevice", False), payload.get("clientId"))
         username, password, name, born = (payload[key] for key in ("username", "password", "name", "birthDate"))
         if not isinstance(username, str) or not USERNAME.fullmatch(username):
             raise MemberError("아이디는 영문·숫자·밑줄 4~24자로 입력해주세요.")
@@ -201,16 +226,19 @@ class MemberStore:
             raise MemberError("생년월일을 확인해주세요. 임시 회원가입은 만 14세 이상만 가능합니다.") from None
         salt, now, user_id = secrets.token_bytes(32), self.clock(), str(uuid.uuid4())
         digest = self._hash(password, salt)
+        recovery_code = self._new_recovery_code()
         try:
             with self._connection(write=True) as db:
                 db.execute("INSERT INTO members VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                            (user_id, username, salt, digest, name.strip(), born, PRIVACY_VERSION,
                             now, int(payload["historyConsent"]), now if payload["historyConsent"] else None, now))
+                self._store_recovery(db, user_id, recovery_code, now)
         except sqlite3.IntegrityError:
             raise MemberError("사용할 수 없는 아이디입니다. 다른 아이디를 입력해주세요.", 409) from None
-        return self._new_session(user_id)
+        return {**self._new_session(user_id, remember=remember, client_id=client_id), "recoveryCode": recovery_code}
 
-    def login(self, username, password) -> dict:
+    def login(self, username, password, rememberDevice=False, clientId=None) -> dict:
+        remember, client_id = self._remember_options(rememberDevice, clientId)
         valid = isinstance(username, str) and USERNAME.fullmatch(username) and isinstance(password, str) and 1 <= len(password) <= 128
         with self._connection() as db:
             row = db.execute("SELECT * FROM members WHERE username=? COLLATE NOCASE", (username if isinstance(username, str) else "",)).fetchone()
@@ -219,19 +247,145 @@ class MemberStore:
         actual = self._hash(password if valid else "invalid-password", salt)
         if not hmac.compare_digest(actual, expected) or not row or not valid:
             raise MemberError("아이디 또는 비밀번호를 확인해주세요.", 401, "INVALID_CREDENTIALS")
-        return self._new_session(row["id"])
+        return self._new_session(row["id"], remember=remember, client_id=client_id, expected_hash=expected)
 
-    def _new_session(self, user_id: str) -> dict:
-        token, now = secrets.token_urlsafe(48), self.clock()
+    @staticmethod
+    def _remember_options(remember, client_id):
+        if not isinstance(remember, bool) or (not remember and client_id is not None):
+            raise MemberError("자동 로그인 설정을 확인해주세요.")
+        if remember:
+            try:
+                if not isinstance(client_id, str) or len(client_id) != 36:
+                    raise ValueError()
+                normalized = str(uuid.UUID(client_id))
+                if normalized != client_id.lower() or uuid.UUID(normalized).int == 0:
+                    raise ValueError()
+            except ValueError:
+                raise MemberError("브라우저 식별자를 확인해주세요.") from None
+            return True, normalized
+        return False, None
+
+    @staticmethod
+    def _secret_digest(value: str) -> str:
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    def _session_in_transaction(self, db, user_id, now, remember_digest=None, expires_at=None):
+        row = self._require_user(db, user_id)
+        token = secrets.token_urlsafe(48)
+        expiry = min(now + self.SESSION_SECONDS, expires_at) if expires_at is not None else now + self.SESSION_SECONDS
+        db.execute("DELETE FROM member_sessions WHERE expires_at<=?", (now,))
+        db.execute("INSERT INTO member_sessions(digest,user_id,created_at,expires_at,remember_digest) VALUES (?,?,?,?,?)",
+                   (self._secret_digest(token), user_id, now, expiry, remember_digest))
+        db.execute("DELETE FROM member_sessions WHERE user_id=? AND digest NOT IN "
+                   "(SELECT digest FROM member_sessions WHERE user_id=? ORDER BY created_at DESC,rowid DESC LIMIT 10)", (user_id, user_id))
+        return {"accessToken": token, "expiresAt": int(expiry), "user": self._profile(row),
+                "quota": self._quota(db, user_id, now), "serverId": self.server_id,
+                "recoveryReady": db.execute("SELECT 1 FROM member_recovery WHERE user_id=?", (user_id,)).fetchone() is not None}
+
+    def _new_session(self, user_id: str, *, remember=False, client_id=None, expected_hash=None) -> dict:
+        now = self.clock()
         with self._connection(write=True) as db:
             row = self._require_user(db, user_id)
-            db.execute("DELETE FROM member_sessions WHERE expires_at<=?", (now,))
-            db.execute("INSERT INTO member_sessions VALUES (?,?,?,?)", (hashlib.sha256(token.encode()).hexdigest(), user_id, now, now + self.SESSION_SECONDS))
-            # A member may keep at most ten concurrent sessions; the newest always works.
-            db.execute("DELETE FROM member_sessions WHERE user_id=? AND digest NOT IN "
-                       "(SELECT digest FROM member_sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 10)", (user_id, user_id))
-            profile = self._profile(row)
-        return {"accessToken": token, "expiresAt": int(now + self.SESSION_SECONDS), "user": profile, "quota": self.quota(user_id)}
+            # A password reset racing the scrypt check cannot issue a session for the old password.
+            if expected_hash is not None and not hmac.compare_digest(row["password_hash"], expected_hash):
+                raise MemberError("아이디 또는 비밀번호를 확인해주세요.", 401, "INVALID_CREDENTIALS")
+            db.execute("DELETE FROM member_remember WHERE expires_at<=?", (now,))
+            remember_digest, remember_token, remember_expiry = None, None, None
+            if remember:
+                remember_token, remember_expiry = secrets.token_urlsafe(48), now + self.REMEMBER_SECONDS
+                remember_digest = self._secret_digest(remember_token)
+                client_digest = self._secret_digest(client_id)
+                db.execute("DELETE FROM member_remember WHERE user_id=? AND client_digest=?", (user_id, client_digest))
+                db.execute("INSERT INTO member_remember VALUES (?,?,?,?,?)", (remember_digest, user_id, client_digest, now, remember_expiry))
+                db.execute("DELETE FROM member_remember WHERE user_id=? AND digest NOT IN "
+                           "(SELECT digest FROM member_remember WHERE user_id=? ORDER BY created_at DESC,rowid DESC LIMIT 10)", (user_id, user_id))
+            result = self._session_in_transaction(db, user_id, now, remember_digest, remember_expiry)
+            if remember:
+                result.update(rememberToken=remember_token, rememberExpiresAt=int(remember_expiry), clientId=client_id)
+            return result
+
+    def remember(self, remember_token, client_id) -> dict:
+        _, client_id = self._remember_options(True, client_id)
+        if not isinstance(remember_token, str) or not 40 <= len(remember_token) <= 128:
+            raise MemberError("자동 로그인이 만료됐습니다. 다시 로그인해주세요.", 401, "REMEMBER_INVALID")
+        digest, now = self._secret_digest(remember_token), self.clock()
+        with self._connection(write=True) as db:
+            row = db.execute("SELECT * FROM member_remember WHERE digest=? AND client_digest=? AND expires_at>?",
+                             (digest, self._secret_digest(client_id), now)).fetchone()
+            if row is None:
+                raise MemberError("자동 로그인이 만료됐습니다. 다시 로그인해주세요.", 401, "REMEMBER_INVALID")
+            result = self._session_in_transaction(db, row["user_id"], now, digest, row["expires_at"])
+            return {**result, "rememberExpiresAt": int(row["expires_at"]), "clientId": client_id}
+
+    def forget(self, remember_token, client_id):
+        _, client_id = self._remember_options(True, client_id)
+        if not isinstance(remember_token, str) or not 40 <= len(remember_token) <= 128:
+            raise MemberError("자동 로그인 정보를 확인해주세요.")
+        with self._connection(write=True) as db:
+            db.execute("DELETE FROM member_remember WHERE digest=? AND client_digest=?",
+                       (self._secret_digest(remember_token), self._secret_digest(client_id)))
+
+    @staticmethod
+    def _new_recovery_code():
+        # 192 random bits; a recovery code is an independent bearer credential, never a name/date lookup.
+        value = secrets.token_hex(24).upper()
+        return "EVAN-" + "-".join(value[index:index + 8] for index in range(0, len(value), 8))
+
+    def _recovery_digest(self, recovery_code):
+        if not isinstance(recovery_code, str) or len(recovery_code) > 80 or not RECOVERY_CODE.fullmatch(recovery_code.strip().upper()):
+            raise MemberError("복구 코드 또는 입력 정보를 확인해주세요.", 400, "RECOVERY_INVALID")
+        return self._secret_digest(recovery_code.strip().upper())
+
+    def _store_recovery(self, db, user_id, code, now):
+        db.execute("INSERT INTO member_recovery(user_id,digest,created_at) VALUES (?,?,?) "
+                   "ON CONFLICT(user_id) DO UPDATE SET digest=excluded.digest,created_at=excluded.created_at",
+                   (user_id, self._recovery_digest(code), now))
+
+    def recovery_code(self, user_id, password):
+        with self._connection() as db:
+            row = self._require_user(db, user_id)
+        valid = isinstance(password, str) and 1 <= len(password) <= 128
+        actual = self._hash(password if valid else "invalid-password", row["password_salt"])
+        if not valid or not hmac.compare_digest(actual, row["password_hash"]):
+            raise MemberError("비밀번호를 확인해주세요.", 401, "INVALID_CREDENTIALS")
+        code = self._new_recovery_code()
+        with self._connection(write=True) as db:
+            current = self._require_user(db, user_id)
+            if not hmac.compare_digest(current["password_hash"], row["password_hash"]):
+                raise MemberError("비밀번호를 다시 확인해주세요.", 401, "INVALID_CREDENTIALS")
+            self._store_recovery(db, user_id, code, self.clock())
+        return {"recoveryCode": code}
+
+    def recover_username(self, recovery_code):
+        digest = self._recovery_digest(recovery_code)
+        with self._connection() as db:
+            row = db.execute("SELECT username FROM member_recovery JOIN members ON members.id=member_recovery.user_id WHERE digest=?", (digest,)).fetchone()
+        if row is None:
+            raise MemberError("복구 코드 또는 입력 정보를 확인해주세요.", 400, "RECOVERY_INVALID")
+        return {"username": row["username"]}
+
+    def reset_password(self, username, recovery_code, new_password):
+        digest = self._recovery_digest(recovery_code)
+        if not isinstance(username, str) or not USERNAME.fullmatch(username):
+            raise MemberError("복구 코드 또는 입력 정보를 확인해주세요.", 400, "RECOVERY_INVALID")
+        if not isinstance(new_password, str) or not PASSWORD_MINIMUM <= len(new_password) <= 128 or len(new_password.encode("utf-8")) > 512:
+            raise MemberError("비밀번호는 6~128자로 입력해주세요.")
+        # Verify before the expensive hash, then verify again inside the write transaction.
+        with self._connection() as db:
+            row = db.execute("SELECT members.id FROM members JOIN member_recovery ON members.id=member_recovery.user_id WHERE username=? COLLATE NOCASE AND digest=?", (username, digest)).fetchone()
+        if row is None:
+            raise MemberError("복구 코드 또는 입력 정보를 확인해주세요.", 400, "RECOVERY_INVALID")
+        salt, replacement, now = secrets.token_bytes(32), self._new_recovery_code(), self.clock()
+        password_hash = self._hash(new_password, salt)
+        with self._connection(write=True) as db:
+            current = db.execute("SELECT members.id,members.username FROM members JOIN member_recovery ON members.id=member_recovery.user_id WHERE members.id=? AND digest=?", (row["id"], digest)).fetchone()
+            if current is None:
+                raise MemberError("복구 코드 또는 입력 정보를 확인해주세요.", 400, "RECOVERY_INVALID")
+            db.execute("UPDATE members SET password_salt=?,password_hash=? WHERE id=?", (salt, password_hash, current["id"]))
+            self._store_recovery(db, current["id"], replacement, now)
+            db.execute("DELETE FROM member_sessions WHERE user_id=?", (current["id"],))
+            db.execute("DELETE FROM member_remember WHERE user_id=?", (current["id"],))
+        return {"username": current["username"], "recoveryCode": replacement}
 
     def verify(self, token: str) -> str:
         if not isinstance(token, str) or not 40 <= len(token) <= 128:
@@ -246,11 +400,17 @@ class MemberStore:
     def me(self, user_id: str) -> dict:
         with self._connection() as db:
             user = self._profile(self._require_user(db, user_id))
-        return {"user": user, "quota": self.quota(user_id)}
+            recovery_ready = db.execute("SELECT 1 FROM member_recovery WHERE user_id=?", (user_id,)).fetchone() is not None
+        return {"user": user, "quota": self.quota(user_id), "recoveryReady": recovery_ready}
 
     def logout(self, token: str):
         with self._connection(write=True) as db:
-            db.execute("DELETE FROM member_sessions WHERE digest=?", (hashlib.sha256(token.encode()).hexdigest(),))
+            digest = self._secret_digest(token)
+            row = db.execute("SELECT remember_digest FROM member_sessions WHERE digest=?", (digest,)).fetchone()
+            if row and row[0]:
+                # All access sessions issued for this remembered browser are revoked together.
+                db.execute("DELETE FROM member_remember WHERE digest=?", (row[0],))
+            db.execute("DELETE FROM member_sessions WHERE digest=?", (digest,))
 
     def _day(self, now: float) -> tuple[str, str]:
         today = datetime.fromtimestamp(now, SEOUL).date()
@@ -453,5 +613,6 @@ class MemberStore:
         with self._connection(write=True) as db:
             db.execute("DELETE FROM member_history WHERE viewed_at<?", (now - self.HISTORY_DAYS * 86400,))
             db.execute("DELETE FROM member_sessions WHERE expires_at<=?", (now,))
+            db.execute("DELETE FROM member_remember WHERE expires_at<=?", (now,))
             db.execute("DELETE FROM member_limits WHERE expires_at<?", (now - 86400,))
             db.execute("DELETE FROM member_question_reservations WHERE created_at<?", (now - 8 * 86400,))
