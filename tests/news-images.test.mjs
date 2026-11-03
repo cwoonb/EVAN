@@ -79,6 +79,21 @@ test("company names, event types and keywords do not choose category art", () =>
   assert.equal(resolveNewsImage({ ...product, title: "NVIDIA security policy", keywords: ["보안"], eventType: "market", company: "Apple" }).src, reference);
 });
 
+test("each explicit category favors its new illustration while keeping older alternatives", () => {
+  for (const [label, category] of [["기술", "technology"], ["제품", "product"], ["비즈니스", "business"], ["시장", "market"], ["정책", "policy"], ["보안", "security"], ["기타", "other"]]) {
+    const counts = [0, 0, 0];
+    for (let index = 0; index < 500; index += 1) {
+      const selected = resolveNewsImage({ ...article, id: `article_${String(index).padStart(20, "0")}`, category: label });
+      assert.equal(selected.category, category);
+      assert.equal(selected.src, NEWS_IMAGE_DIRECTORY + categoryImageManifest[category][selected.variant]);
+      counts[selected.variant] += 1;
+    }
+    assert.equal(categoryImageManifest[category][0], `${category}-v2.webp`);
+    assert.ok(counts[0] > counts[1] * 2 && counts[0] > counts[2] * 2, `${category}: ${counts}`);
+    assert.ok(counts[1] > 0 && counts[2] > 0, `${category}: ${counts}`);
+  }
+});
+
 test("403/404/network failures advance actual image, category, default, CSS without a loop", () => {
   const news = { ...article, image: permittedImage }, failures = new Set();
   let current = resolveNewsImage(news, failures, policy);

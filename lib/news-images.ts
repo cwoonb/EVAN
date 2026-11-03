@@ -1,13 +1,13 @@
 /** Fixed category artwork. Do not choose images from company names or keywords. */
-export const NEWS_IMAGE_MAPPING_VERSION = "category-artwork-v1";
+export const NEWS_IMAGE_MAPPING_VERSION = "category-artwork-v2";
 export const categoryImageManifest = {
-  technology: ["technology-01.webp", "technology-02.webp", "technology-03.webp"],
-  product: ["product-01.webp", "product-02.webp", "product-03.webp"],
-  business: ["business-01.webp", "business-02.webp", "business-03.webp"],
-  market: ["market-01.webp", "market-02.webp", "market-03.webp"],
-  policy: ["policy-01.webp", "policy-02.webp", "policy-03.webp"],
-  security: ["security-01.webp", "security-02.webp", "security-03.webp"],
-  other: ["other-01.webp", "other-02.webp", "other-03.webp"],
+  technology: ["technology-v2.webp", "technology-02.webp", "technology-03.webp"],
+  product: ["product-v2.webp", "product-02.webp", "product-03.webp"],
+  business: ["business-v2.webp", "business-02.webp", "business-03.webp"],
+  market: ["market-v2.webp", "market-02.webp", "market-03.webp"],
+  policy: ["policy-v2.webp", "policy-02.webp", "policy-03.webp"],
+  security: ["security-v2.webp", "security-02.webp", "security-03.webp"],
+  other: ["other-v2.webp", "other-02.webp", "other-03.webp"],
 } as const;
 export type NewsImageCategory = keyof typeof categoryImageManifest;
 export const NEWS_IMAGE_DIRECTORY = "/images/news-fallbacks/";
@@ -91,7 +91,9 @@ export function approvedArticleImage(value: unknown, options: ImageResolutionOpt
 export function resolveNewsImage(news: NewsImageInput, failures: ReadonlySet<string> = new Set(), options: ImageResolutionOptions = {}): NewsImageChoice {
   const category = normalizeCategory(news.category);
   const identity = newsImageIdentity(news);
-  const variant = stableImageHash(`${NEWS_IMAGE_MAPPING_VERSION}|${identity}`) % 3;
+  // New category artwork receives three of five slots; existing alternatives keep variety.
+  const slot = stableImageHash(`${NEWS_IMAGE_MAPPING_VERSION}|${identity}`) % 5;
+  const variant = slot < 3 ? 0 : slot - 2;
   const common = { category, identity, variant };
   const actual = approvedArticleImage(news.image, options);
   if (actual && !failures.has(actual)) return { ...common, kind: "article", src: actual };

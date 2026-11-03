@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "mappingVersion": "category-artwork-v1",
+  "mappingVersion": "category-artwork-v2",
   "provider": "Built-in image_gen",
   "purpose": "Static editorial category illustration, not actual article photography",
   "basePrompt": "Use case: stylized-concept. Asset type: final static editorial category illustration for a dark Korean AI news website, not an actual news photograph. Create ONE single image, landscape 16:9, target 1200x675. Understated refined 3D still life. Deep navy, charcoal, restrained steel blue, low saturation, matte materials, soft broad studio light with visible central form and calm shadow detail. Center-weighted composition safe for edge cropping, simple forms readable as a small thumbnail, no busy background. Absolutely NO text, letters, numbers, chart axes, UI, icons, people, faces, real brand logos, recognisable actual consumer products, Earth/globe, robots, padlocks, neon or excessive glow. No borders, no collage, no watermark.",
@@ -8,19 +8,19 @@
     "format": "WebP",
     "width": 1200,
     "height": 675,
-    "quality": 83,
+    "quality": "83 (v1); adaptive 75 to 45 (v2)",
     "method": 6,
     "changes": "Resize and re-encode only; original generated PNGs retained outside public assets."
   },
   "images": [
     {
-      "file": "technology-01.webp",
+      "file": "technology-v2.webp",
       "category": "technology",
-      "subject": "A precise abstract silicon compute tile on a dark ceramic substrate, fine etched non-letter circuit traces branching calmly around one central square, shallow angled overhead view.",
-      "sourceFile": "exec-d41cb6a8-f0f2-4f5c-b0d0-7acfe827e649.png",
+      "subject": "AI processor and luminous neural circuits",
+      "sourceFile": "exec-c54438ed-a4a5-4eb0-b09c-4fe6b0ed7bbe.png",
       "width": 1200,
       "height": 675,
-      "bytes": 102336
+      "bytes": 84234
     },
     {
       "file": "technology-02.webp",
@@ -41,13 +41,13 @@
       "bytes": 61294
     },
     {
-      "file": "product-01.webp",
+      "file": "product-v2.webp",
       "category": "product",
-      "subject": "A purely fictional unbranded device structure assembled from two rounded dark rectangular modules and a small inset glass plane, sculptural concept, no interface or buttons.",
-      "sourceFile": "exec-6f0a5e74-8754-4bfa-a5ef-0c74eb0a9666.png",
+      "subject": "Futuristic personal AI device on a studio pedestal",
+      "sourceFile": "exec-6fdd478a-dceb-43c3-9957-2a6e776e4d79.png",
       "width": 1200,
       "height": 675,
-      "bytes": 22076
+      "bytes": 40284
     },
     {
       "file": "product-02.webp",
@@ -68,13 +68,13 @@
       "bytes": 25740
     },
     {
-      "file": "business-01.webp",
+      "file": "business-v2.webp",
       "category": "business",
-      "subject": "Three substantial graphite architectural blocks interlock around a shared steel-blue central connector, a quiet metaphor for collaboration and organisations.",
-      "sourceFile": "exec-182ec3d4-d111-4ce1-952b-c19b7f4660cd.png",
+      "subject": "Modern office architecture and abstract human collaboration",
+      "sourceFile": "exec-a2090c71-a99e-4509-8fd5-4d5b75c8b027.png",
       "width": 1200,
       "height": 675,
-      "bytes": 35648
+      "bytes": 55430
     },
     {
       "file": "business-02.webp",
@@ -95,13 +95,13 @@
       "bytes": 27366
     },
     {
-      "file": "market-01.webp",
+      "file": "market-v2.webp",
       "category": "market",
-      "subject": "A miniature abstract industrial infrastructure of low graphite buildings and a central network hub, sparse steel-blue connective channels, no labels or charts.",
-      "sourceFile": "exec-036f0971-cae9-4122-863a-7762094e9dac.png",
+      "subject": "Financial data curves surrounding a globe",
+      "sourceFile": "exec-6381638a-0187-4f76-9204-60d4e031ac61.png",
       "width": 1200,
       "height": 675,
-      "bytes": 54578
+      "bytes": 85466
     },
     {
       "file": "market-02.webp",
@@ -122,13 +122,13 @@
       "bytes": 40170
     },
     {
-      "file": "policy-01.webp",
+      "file": "policy-v2.webp",
       "category": "policy",
-      "subject": "A stack of completely blank navy and charcoal paper-like sheets beside a minimal civic colonnade form, central institutional still life, no writing or seals.",
-      "sourceFile": "exec-945f1048-4961-46b9-a17f-044859b1dea8.png",
+      "subject": "A courthouse with legal documents and balanced scales",
+      "sourceFile": "exec-3ca8e4b4-daa4-4334-b8e6-5316e3b2e3de.png",
       "width": 1200,
       "height": 675,
-      "bytes": 41288
+      "bytes": 90544
     },
     {
       "file": "policy-02.webp",
@@ -149,13 +149,13 @@
       "bytes": 35578
     },
     {
-      "file": "security-01.webp",
+      "file": "security-v2.webp",
       "category": "security",
-      "subject": "A protected central graphite system block enclosed by two separated concentric rectangular structural frames, abstract access isolation, no padlocks or shield icons.",
-      "sourceFile": "exec-c204d462-f409-4747-a61c-e30b52d2ed28.png",
+      "subject": "A secure digital vault and luminous shield",
+      "sourceFile": "exec-aacce32d-cf2a-47e5-9b79-95db3951eb1f.png",
       "width": 1200,
       "height": 675,
-      "bytes": 44662
+      "bytes": 60820
     },
     {
       "file": "security-02.webp",
@@ -176,13 +176,13 @@
       "bytes": 30250
     },
     {
-      "file": "other-01.webp",
+      "file": "other-v2.webp",
       "category": "other",
-      "subject": "A calm central folded matte navy ceramic ribbon resting on a charcoal surface, neutral abstract editorial composition.",
-      "sourceFile": "exec-f0f86b7c-cf60-4796-a7fb-dbedd04074ee.png",
+      "subject": "Globe with flowing strands of information",
+      "sourceFile": "exec-46d0245d-bbcc-4616-a9a3-ba5a88040928.png",
       "width": 1200,
       "height": 675,
-      "bytes": 42790
+      "bytes": 88388
     },
     {
       "file": "other-02.webp",
@@ -211,5 +211,6 @@
       "height": 675,
       "bytes": 25650
     }
-  ]
+  ],
+  "v2Prompt": "Create one distinct editorial news category image, wide landscape 16:9. Sophisticated cinematic 3D illustration for EVAN AI news. Dark navy and rich blue palette with pale blue light, visually clear in small thumbnails. NO text, letters, logos or watermark."
 }
